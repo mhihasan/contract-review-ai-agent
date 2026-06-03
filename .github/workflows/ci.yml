@@ -12,9 +12,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
-      - uses: golangci/golangci-lint-action@v7
-        with:
-          version: v2.12.2
+      - name: Lint
+        run: make lint
 
   test:
     name: Test
