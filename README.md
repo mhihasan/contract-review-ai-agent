@@ -14,40 +14,51 @@
 
 ### Entity Relationship Diagram
 
-```
-contracts
-│   id (PK)
-│   filename
-│   raw_text
-│   status
-│   created_at
-│
-└──< clauses
-        id (PK)
-        contract_id (FK → contracts)
-        sequence_number
-        text
-        │
-        ├──< clause_analyses
-        │       id (PK)
-        │       clause_id (FK → clauses)
-        │       risk_level       -- nullable (null when status = 'failed')
-        │       explanation
-        │       ambiguous_language
-        │       recommendations
-        │       status           -- 'ok' | 'failed'
-        │
-        └──< reviews
-                id (PK)
-                clause_id (FK → clauses)
-                decision         -- 'approved' | 'rejected'
-                annotation
+```mermaid
+erDiagram
+    contracts {
+        text id PK
+        text filename
+        text raw_text
+        text status
+        timestamptz created_at
+    }
 
-summaries
-    id (PK)
-    contract_id (FK → contracts)   -- unique (one summary per contract)
-    content
-    created_at
+    clauses {
+        text id PK
+        text contract_id FK
+        int sequence_number
+        text text
+    }
+
+    clause_analyses {
+        text id PK
+        text clause_id FK
+        text risk_level "nullable"
+        text explanation
+        text ambiguous_language
+        text recommendations
+        text status "ok | failed"
+    }
+
+    reviews {
+        text id PK
+        text clause_id FK
+        text decision "approved | rejected"
+        text annotation
+    }
+
+    summaries {
+        text id PK
+        text contract_id FK "unique"
+        text content
+        timestamptz created_at
+    }
+
+    contracts ||--o{ clauses : "has"
+    clauses ||--o{ clause_analyses : "analyzed by"
+    clauses ||--o{ reviews : "reviewed by"
+    contracts ||--o| summaries : "summarized by"
 ```
 
 ### Contract status flow
