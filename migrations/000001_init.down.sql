@@ -1,0 +1,5 @@
+DROP TABLE IF EXISTS summaries;
+DROP TABLE IF EXISTS reviews;
+DROP TABLE IF EXISTS clause_analyses;
+DROP TABLE IF EXISTS clauses;
+DROP TABLE IF EXISTS contracts;

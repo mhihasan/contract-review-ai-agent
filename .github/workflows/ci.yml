@@ -12,9 +12,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
-      - uses: golangci/golangci-lint-action@v6
-        with:
-          version: v2.12.2
+      - name: Lint
+        run: make lint
 
   test:
     name: Test
@@ -39,5 +38,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
+      - name: Run migrations
+        run: make migrate-up
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/contract_agent?sslmode=disable
       - name: Run tests
         run: go test ./... -race -count=1
