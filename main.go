@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -44,7 +45,9 @@ func main() {
 		os.Exit(1)
 	}
 	defer pool.Close()
-	slog.Info("postgres ping ok")
+
+	s := store.NewPostgresStore(pool)
+	slog.Info("postgres ready", "store", fmt.Sprintf("%T", s))
 
 	client := openai.NewClient(option.WithAPIKey(cfg.OpenAIAPIKey))
 	text, err := llm.Hello(ctx, &client, "gpt-4o-mini")

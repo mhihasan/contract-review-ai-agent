@@ -1,3 +1,5 @@
 [tools]
 go = "1.25"
 golangci-lint = "2.12.2"
+sqlc = "latest"
+gomigrate = "latest"
