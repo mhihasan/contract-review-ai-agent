@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	ledongthuc "github.com/ledongthuc/pdf"
+	pdflib "github.com/ledongthuc/pdf"
 )
 
 var ErrNotPDF = errors.New("not a PDF file")
@@ -54,11 +54,11 @@ func ExtractText(ctx context.Context, path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("extract %s: %w", path, err)
 	}
-	return text, nil
+	return "", fmt.Errorf("extract %s: no text found", path)
 }
 
 func extractWithLibrary(path string) (string, error) {
-	f, r, err := ledongthuc.Open(path)
+	f, r, err := pdflib.Open(path)
 	if err != nil {
 		return "", fmt.Errorf("pdf open: %w", err)
 	}
