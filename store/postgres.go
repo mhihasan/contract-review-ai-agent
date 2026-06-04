@@ -66,6 +66,16 @@ func (s *PostgresStore) UpdateContractStatus(ctx context.Context, id string, sta
 	return nil
 }
 
+func (s *PostgresStore) UpdateContractText(ctx context.Context, id, rawText string) error {
+	if err := s.q.UpdateContractText(ctx, db.UpdateContractTextParams{
+		ID:      id,
+		RawText: rawText,
+	}); err != nil {
+		return fmt.Errorf("update contract text: %w", err)
+	}
+	return nil
+}
+
 func (s *PostgresStore) SaveClauses(ctx context.Context, contractID string, clauses []domain.Clause) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {

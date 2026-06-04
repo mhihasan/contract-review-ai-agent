@@ -2,3 +2,4 @@
 contract-review-ai-agent
 bin/
 *.out
+.worktrees/

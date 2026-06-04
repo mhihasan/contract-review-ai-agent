@@ -10,6 +10,7 @@ type Store interface {
 	CreateContract(ctx context.Context, filename, rawText string) (domain.Contract, error)
 	GetContract(ctx context.Context, id string) (domain.Contract, error)
 	UpdateContractStatus(ctx context.Context, id string, status domain.ContractStatus) error
+	UpdateContractText(ctx context.Context, id, rawText string) error
 
 	SaveClauses(ctx context.Context, contractID string, clauses []domain.Clause) error
 	GetClauses(ctx context.Context, contractID string) ([]domain.Clause, error)
