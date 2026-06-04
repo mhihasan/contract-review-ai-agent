@@ -186,6 +186,42 @@ func (s *PostgresStore) GetSummary(ctx context.Context, contractID string) (doma
 	return toDomainSummary(row), nil
 }
 
+func (s *PostgresStore) SearchClauseLibrary(ctx context.Context, query string) ([]domain.LibraryClause, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT id, clause_type, standard_text, notes FROM clause_library
+         WHERE clause_type ILIKE $1 OR standard_text ILIKE $1
+         ORDER BY clause_type
+         LIMIT 5`,
+		"%"+query+"%",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("search clause library: %w", err)
+	}
+	defer rows.Close()
+
+	var out []domain.LibraryClause
+	for rows.Next() {
+		var c domain.LibraryClause
+		if err := rows.Scan(&c.ID, &c.ClauseType, &c.StandardText, &c.Notes); err != nil {
+			return nil, fmt.Errorf("scan clause library row: %w", err)
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+func (s *PostgresStore) GetStandardClause(ctx context.Context, clauseType string) (domain.LibraryClause, error) {
+	var c domain.LibraryClause
+	err := s.pool.QueryRow(ctx,
+		`SELECT id, clause_type, standard_text, notes FROM clause_library WHERE clause_type = $1 LIMIT 1`,
+		clauseType,
+	).Scan(&c.ID, &c.ClauseType, &c.StandardText, &c.Notes)
+	if err != nil {
+		return domain.LibraryClause{}, fmt.Errorf("get standard clause: %w", err)
+	}
+	return c, nil
+}
+
 func toDomainContract(r db.Contract) domain.Contract {
 	return domain.Contract{
 		ID:        r.ID,

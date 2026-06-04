@@ -79,3 +79,10 @@ type Summary struct {
 	Content    string
 	CreatedAt  time.Time
 }
+
+type LibraryClause struct {
+	ID           string
+	ClauseType   string
+	StandardText string
+	Notes        string
+}

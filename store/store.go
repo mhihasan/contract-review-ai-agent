@@ -23,4 +23,7 @@ type Store interface {
 
 	SaveSummary(ctx context.Context, contractID, content string) error
 	GetSummary(ctx context.Context, contractID string) (domain.Summary, error)
+
+	SearchClauseLibrary(ctx context.Context, query string) ([]domain.LibraryClause, error)
+	GetStandardClause(ctx context.Context, clauseType string) (domain.LibraryClause, error)
 }
