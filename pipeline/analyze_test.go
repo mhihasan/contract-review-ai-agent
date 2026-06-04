@@ -109,7 +109,7 @@ func TestAnalyzeClauses_AnalysesEveryClause(t *testing.T) {
 		},
 	}
 
-	if err := pipeline.AnalyzeClauses(context.Background(), fake, ms, contractID, 10); err != nil {
+	if err := pipeline.AnalyzeClauses(context.Background(), fake, ms, contractID, 10, nil); err != nil {
 		t.Fatalf("AnalyzeClauses: %v", err)
 	}
 
@@ -139,7 +139,7 @@ func TestAnalyzeClauses_NoClauses_NoError(t *testing.T) {
 
 	fake := &llm.Fake{Script: nil}
 
-	if err := pipeline.AnalyzeClauses(context.Background(), fake, ms, contractID, 10); err != nil {
+	if err := pipeline.AnalyzeClauses(context.Background(), fake, ms, contractID, 10, nil); err != nil {
 		t.Fatalf("AnalyzeClauses with no clauses: %v", err)
 	}
 	if len(ms.analyses) != 0 {

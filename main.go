@@ -123,7 +123,7 @@ func main() {
 	}
 }
 
-func runProcess(ctx context.Context, _ config.Config, client llm.LLM, s store.Store, pdfPath string) error {
+func runProcess(ctx context.Context, cfg config.Config, client llm.LLM, s store.Store, pdfPath string) error {
 	contractID, err := pipeline.RunExtract(ctx, s, pdf.ExtractText, pdfPath)
 	if err != nil {
 		return fmt.Errorf("extract: %w", err)
@@ -135,7 +135,14 @@ func runProcess(ctx context.Context, _ config.Config, client llm.LLM, s store.St
 	}
 	slog.Info("clauses extracted", "contract_id", contractID)
 
-	if err := pipeline.AnalyzeClauses(ctx, client, s, contractID, defaultMaxSteps); err != nil {
+	ctxMgr := agent.NewContextManager(
+		cfg.LLMModel,
+		cfg.ContextWindow,
+		cfg.CompactRatio,
+		cfg.KeepRecent,
+		client,
+	)
+	if err := pipeline.AnalyzeClauses(ctx, client, s, contractID, defaultMaxSteps, ctxMgr); err != nil {
 		return fmt.Errorf("analyze-clauses: %w", err)
 	}
 	slog.Info("clauses analyzed", "contract_id", contractID)
