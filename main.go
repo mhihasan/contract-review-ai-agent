@@ -9,12 +9,17 @@ import (
 
 	"github.com/joho/godotenv"
 
+	"github.com/mhihasan/contract-review-ai-agent/agent"
 	"github.com/mhihasan/contract-review-ai-agent/config"
+	"github.com/mhihasan/contract-review-ai-agent/domain"
 	"github.com/mhihasan/contract-review-ai-agent/llm"
 	"github.com/mhihasan/contract-review-ai-agent/pdf"
 	"github.com/mhihasan/contract-review-ai-agent/pipeline"
 	"github.com/mhihasan/contract-review-ai-agent/store"
+	"github.com/mhihasan/contract-review-ai-agent/tool"
 )
+
+const defaultMaxSteps = 12
 
 func main() {
 	_ = godotenv.Load()
@@ -61,6 +66,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  process <path/to/contract.pdf>   run the full pipeline")
 		fmt.Fprintln(os.Stderr, "  extract <path/to/contract.pdf>   debug: PDF extraction only")
 		fmt.Fprintln(os.Stderr, "  extract-clauses <contract_id>    debug: clause splitting only")
+		fmt.Fprintln(os.Stderr, "  analyze-clause <contract_id> <clause_id>  debug: run agent on one clause")
 		os.Exit(1)
 	}
 
@@ -101,6 +107,16 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "analyze-clause":
+		if len(os.Args) < 4 {
+			fmt.Fprintln(os.Stderr, "usage: analyze-clause <contract_id> <clause_id>")
+			os.Exit(1)
+		}
+		if err := runAnalyzeClause(ctx, client, s, os.Args[2], os.Args[3]); err != nil {
+			slog.Error("analyze-clause failed", "error", err)
+			os.Exit(1)
+		}
+
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
 		os.Exit(1)
@@ -119,5 +135,57 @@ func runProcess(ctx context.Context, _ config.Config, client llm.LLM, s store.St
 	}
 	slog.Info("clauses extracted", "contract_id", contractID)
 
+	if err := pipeline.AnalyzeClauses(ctx, client, s, contractID, defaultMaxSteps); err != nil {
+		return fmt.Errorf("analyze-clauses: %w", err)
+	}
+	slog.Info("clauses analyzed", "contract_id", contractID)
+
+	return nil
+}
+
+func runAnalyzeClause(ctx context.Context, client llm.LLM, s store.Store, contractID, clauseID string) error {
+	clauses, err := s.GetClauses(ctx, contractID)
+	if err != nil {
+		return fmt.Errorf("get clauses: %w", err)
+	}
+
+	var target *domain.Clause
+	for i := range clauses {
+		if clauses[i].ID == clauseID {
+			target = &clauses[i]
+			break
+		}
+	}
+	if target == nil {
+		return fmt.Errorf("clause %q not found", clauseID)
+	}
+
+	reg := tool.NewRegistry(
+		tool.NewGetDefinition(s, contractID),
+		tool.NewGetContractSection(s, contractID),
+		tool.NewSearchClauseLibrary(s, contractID),
+		tool.NewLookupStandardClause(s, contractID),
+	)
+
+	a := agent.New(client, reg, defaultMaxSteps)
+	result, err := a.Run(ctx, agent.AnalyzeClauseTask{
+		ContractID: target.ContractID,
+		ClauseID:   target.ID,
+		ClauseText: target.Text,
+	})
+	if err != nil {
+		return fmt.Errorf("agent run: %w", err)
+	}
+
+	fmt.Printf("Stop:  %s\n", result.Stop)
+	fmt.Printf("Steps: %d\n", result.Steps)
+	if result.Stop == "submitted" {
+		fmt.Printf("Risk:  %s\n", *result.Finding.RiskLevel)
+		fmt.Printf("Explanation: %s\n", result.Finding.Explanation)
+		if result.Finding.AmbiguousLanguage != "" {
+			fmt.Printf("Ambiguous: %s\n", result.Finding.AmbiguousLanguage)
+		}
+		fmt.Printf("Recommendations: %s\n", result.Finding.Recommendations)
+	}
 	return nil
 }
