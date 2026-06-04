@@ -126,8 +126,8 @@ func TestAnalyzeClauses_AnalysesEveryClause(t *testing.T) {
 	}
 
 	finalStatus := ms.statuses[contractID]
-	if finalStatus != domain.StatusAnalyzing {
-		t.Errorf("contract status = %q, want %q", finalStatus, domain.StatusAnalyzing)
+	if finalStatus != domain.StatusAnalyzed {
+		t.Errorf("contract status = %q, want %q", finalStatus, domain.StatusAnalyzed)
 	}
 }
 

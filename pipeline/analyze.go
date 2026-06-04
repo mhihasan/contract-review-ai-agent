@@ -52,5 +52,9 @@ func AnalyzeClauses(ctx context.Context, client llm.LLM, s store.Store, contract
 		}
 	}
 
+	if err := s.UpdateContractStatus(ctx, contractID, domain.StatusAnalyzed); err != nil {
+		return fmt.Errorf("update status to analyzed: %w", err)
+	}
+
 	return nil
 }
