@@ -2,16 +2,15 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"log/slog"
 	"os"
 
 	"github.com/joho/godotenv"
-	openai "github.com/openai/openai-go/v3"
-	"github.com/openai/openai-go/v3/option"
 
 	"github.com/mhihasan/contract-review-ai-agent/config"
-	"github.com/mhihasan/contract-review-ai-agent/llm"
+	"github.com/mhihasan/contract-review-ai-agent/pdf"
+	"github.com/mhihasan/contract-review-ai-agent/pipeline"
 	"github.com/mhihasan/contract-review-ai-agent/store"
 )
 
@@ -47,13 +46,35 @@ func main() {
 	defer pool.Close()
 
 	s := store.NewPostgresStore(pool)
-	slog.Info("postgres ready", "store", fmt.Sprintf("%T", s))
 
-	client := openai.NewClient(option.WithAPIKey(cfg.OpenAIAPIKey))
-	text, err := llm.Hello(ctx, &client, "gpt-4o-mini")
-	if err != nil {
-		slog.Error("llm call failed", "error", err)
-		os.Exit(1)
+	if len(os.Args) < 2 {
+		usage()
+		os.Exit(2)
 	}
-	slog.Info("llm response", "text", text)
+
+	switch os.Args[1] {
+	case "extract":
+		if len(os.Args) < 3 {
+			slog.Error("extract requires a path", "usage", "go run . extract <path/to/contract.pdf>")
+			os.Exit(2)
+		}
+		id, err := pipeline.RunExtract(ctx, s, pdf.ExtractText, os.Args[2])
+		if err != nil {
+			if errors.Is(err, pdf.ErrNotPDF) {
+				slog.Error("not a PDF file", "path", os.Args[2])
+				os.Exit(1)
+			}
+			slog.Error("extract failed", "error", err)
+			os.Exit(1)
+		}
+		slog.Info("extracted", "contract_id", id)
+	default:
+		usage()
+		os.Exit(2)
+	}
+}
+
+func usage() {
+	slog.Error("usage: contract-review-ai-agent <command> [args]",
+		"commands", "extract <path/to/contract.pdf>")
 }
