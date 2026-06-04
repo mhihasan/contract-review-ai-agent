@@ -1,8 +1,11 @@
 package pipeline
 
 import (
+	"context"
 	"errors"
 	"testing"
+
+	"github.com/mhihasan/contract-review-ai-agent/llm"
 )
 
 func TestParseClauses_ValidArray(t *testing.T) {
@@ -59,6 +62,37 @@ func TestErrClauseParse_IsSentinel(t *testing.T) {
 	}
 }
 
-func TestExtractClauses_IdempotentOnAlreadyExtracted(_ *testing.T) {
-	_ = ExtractClauses // ensure it is exported and callable
+func TestExtractClausesFromLLM_UsesFake(t *testing.T) {
+	fake := &llm.Fake{
+		Script: []llm.CompletionResponse{
+			{Content: `["clause A", "clause B"]`, StopReason: "end_turn"},
+		},
+	}
+	clauses, err := extractClausesFromLLM(context.Background(), fake, "contract text here")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(clauses) != 2 {
+		t.Fatalf("expected 2 clauses, got %d", len(clauses))
+	}
+	if len(fake.Calls) != 1 {
+		t.Fatalf("expected 1 LLM call, got %d", len(fake.Calls))
+	}
+}
+
+func TestExtractClausesFromLLM_RetriesOnParseError(t *testing.T) {
+	fake := &llm.Fake{
+		Script: []llm.CompletionResponse{
+			{Content: `not json`, StopReason: "end_turn"},
+			{Content: `also not json`, StopReason: "end_turn"},
+			{Content: `still not json`, StopReason: "end_turn"},
+		},
+	}
+	_, err := extractClausesFromLLM(context.Background(), fake, "text")
+	if !errors.Is(err, ErrClauseParse) {
+		t.Fatalf("expected ErrClauseParse after 3 attempts, got %v", err)
+	}
+	if len(fake.Calls) != 3 {
+		t.Fatalf("expected 3 LLM calls (one per retry), got %d", len(fake.Calls))
+	}
 }
