@@ -9,21 +9,21 @@ import (
 	"github.com/mhihasan/contract-review-ai-agent/llm"
 )
 
-func TestOpenAI_ImplementsLLM(_ *testing.T) {
-	var _ llm.LLM = &llm.OpenAI{}
+func TestAnthropic_ImplementsLLM(_ *testing.T) {
+	var _ llm.LLM = &llm.Anthropic{}
 }
 
-func TestOpenAI_PlainCompletion_Integration(t *testing.T) {
-	key := os.Getenv("OPENAI_API_KEY")
+func TestAnthropic_PlainCompletion_Integration(t *testing.T) {
+	key := os.Getenv("ANTHROPIC_API_KEY")
 	if key == "" {
-		t.Skip("OPENAI_API_KEY not set")
+		t.Skip("ANTHROPIC_API_KEY not set")
 	}
 	model := os.Getenv("LLM_MODEL")
 	if model == "" {
-		model = "gpt-4o-mini"
+		model = "claude-haiku-4-5-20251001"
 	}
 
-	client := llm.NewOpenAI(key, model)
+	client := llm.NewAnthropic(key, model)
 	resp, err := client.Complete(context.Background(), llm.CompletionRequest{
 		Messages:  []llm.Message{{Role: llm.RoleUser, Content: "Reply with the single word: pong"}},
 		MaxTokens: 16,
@@ -34,25 +34,25 @@ func TestOpenAI_PlainCompletion_Integration(t *testing.T) {
 	if resp.StopReason == "" {
 		t.Error("StopReason must not be empty")
 	}
-	if resp.Provider != "openai" {
-		t.Errorf("Provider = %q, want %q", resp.Provider, "openai")
+	if resp.Provider != "anthropic" {
+		t.Errorf("Provider = %q, want %q", resp.Provider, "anthropic")
 	}
 	if resp.InputTokens == 0 {
 		t.Error("InputTokens must be > 0")
 	}
 }
 
-func TestOpenAI_ToolCall_Integration(t *testing.T) {
-	key := os.Getenv("OPENAI_API_KEY")
+func TestAnthropic_ToolCall_Integration(t *testing.T) {
+	key := os.Getenv("ANTHROPIC_API_KEY")
 	if key == "" {
-		t.Skip("OPENAI_API_KEY not set")
+		t.Skip("ANTHROPIC_API_KEY not set")
 	}
 	model := os.Getenv("LLM_MODEL")
 	if model == "" {
-		model = "gpt-4o-mini"
+		model = "claude-haiku-4-5-20251001"
 	}
 
-	client := llm.NewOpenAI(key, model)
+	client := llm.NewAnthropic(key, model)
 	schema := json.RawMessage(`{
 		"type": "object",
 		"properties": { "city": { "type": "string" } },
