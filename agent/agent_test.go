@@ -129,7 +129,7 @@ func TestAgent_HappyPath_SubmittedAfterToolCalls(t *testing.T) {
 		},
 	}
 
-	a := agent.New(fake, reg, 10)
+	a := agent.New(fake, reg, 10, nil)
 	result, err := a.Run(context.Background(), agent.AnalyzeClauseTask{
 		ContractID: contractID,
 		ClauseID:   "cl-2",
@@ -172,7 +172,7 @@ func TestAgent_MaxSteps_LoopCannotRunForever(t *testing.T) {
 	}
 
 	fake := &llm.Fake{Script: script}
-	a := agent.New(fake, reg, maxSteps)
+	a := agent.New(fake, reg, maxSteps, nil)
 	result, err := a.Run(context.Background(), agent.AnalyzeClauseTask{
 		ContractID: contractID,
 		ClauseID:   "cl-2",
@@ -215,7 +215,7 @@ func TestAgent_InvalidFinding_AgentGetsAnotherTurn(t *testing.T) {
 		},
 	}
 
-	a := agent.New(fake, reg, 10)
+	a := agent.New(fake, reg, 10, nil)
 	result, err := a.Run(context.Background(), agent.AnalyzeClauseTask{
 		ContractID: contractID,
 		ClauseID:   "cl-2",
@@ -250,7 +250,7 @@ func TestAgent_ToolResultMatchesToolCallID(t *testing.T) {
 		},
 	}
 
-	a := agent.New(fake, reg, 10)
+	a := agent.New(fake, reg, 10, nil)
 	_, err := a.Run(context.Background(), agent.AnalyzeClauseTask{
 		ContractID: contractID,
 		ClauseID:   "cl-2",
@@ -287,7 +287,7 @@ func TestAgent_ProseResponse_NudgesModel(t *testing.T) {
 		},
 	}
 
-	a := agent.New(fake, reg, 10)
+	a := agent.New(fake, reg, 10, nil)
 	result, err := a.Run(context.Background(), agent.AnalyzeClauseTask{
 		ContractID: contractID,
 		ClauseID:   "cl-2",
@@ -329,7 +329,7 @@ func TestAgent_Cancellation_StopsPromptly(t *testing.T) {
 		}},
 	}}
 
-	a := agent.New(fake, reg, 10)
+	a := agent.New(fake, reg, 10, nil)
 	result, err := a.Run(ctx, agent.AnalyzeClauseTask{
 		ContractID: contractID,
 		ClauseID:   "cl-2",

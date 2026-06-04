@@ -33,10 +33,11 @@ type Agent struct {
 	llm      llm.LLM
 	tools    *tool.Registry
 	maxSteps int
+	ctxMgr   *ContextManager
 }
 
-func New(l llm.LLM, tools *tool.Registry, maxSteps int) *Agent {
-	return &Agent{llm: l, tools: tools, maxSteps: maxSteps}
+func New(l llm.LLM, tools *tool.Registry, maxSteps int, ctxMgr *ContextManager) *Agent {
+	return &Agent{llm: l, tools: tools, maxSteps: maxSteps, ctxMgr: ctxMgr}
 }
 
 func (a *Agent) Run(ctx context.Context, task AnalyzeClauseTask) (Result, error) {
@@ -46,6 +47,14 @@ func (a *Agent) Run(ctx context.Context, task AnalyzeClauseTask) (Result, error)
 	for step := 0; step < a.maxSteps; step++ {
 		if ctx.Err() != nil {
 			return Result{Steps: step, Stop: "cancelled", Usage: usage}, ctx.Err()
+		}
+
+		if a.ctxMgr != nil {
+			var err error
+			msgs, err = a.ctxMgr.Prepare(ctx, msgs)
+			if err != nil {
+				return Result{}, fmt.Errorf("context prepare at step %d: %w", step, err)
+			}
 		}
 
 		resp, err := a.llm.Complete(ctx, llm.CompletionRequest{

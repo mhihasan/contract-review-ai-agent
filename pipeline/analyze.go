@@ -30,7 +30,7 @@ func AnalyzeClauses(ctx context.Context, client llm.LLM, s store.Store, contract
 	)
 
 	for _, clause := range clauses {
-		a := agent.New(client, reg, maxSteps)
+		a := agent.New(client, reg, maxSteps, nil)
 		result, err := a.Run(ctx, agent.AnalyzeClauseTask{
 			ContractID: contractID,
 			ClauseID:   clause.ID,

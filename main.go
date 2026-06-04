@@ -167,7 +167,7 @@ func runAnalyzeClause(ctx context.Context, client llm.LLM, s store.Store, contra
 		tool.NewLookupStandardClause(s, contractID),
 	)
 
-	a := agent.New(client, reg, defaultMaxSteps)
+	a := agent.New(client, reg, defaultMaxSteps, nil)
 	result, err := a.Run(ctx, agent.AnalyzeClauseTask{
 		ContractID: target.ContractID,
 		ClauseID:   target.ID,
