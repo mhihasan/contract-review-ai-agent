@@ -77,5 +77,5 @@ func statusRank(s domain.ContractStatus) int {
 		domain.StatusDone:
 		return 3
 	}
-	return 3
+	return -1
 }

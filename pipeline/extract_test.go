@@ -2,6 +2,8 @@ package pipeline
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/mhihasan/contract-review-ai-agent/domain"
@@ -24,8 +26,14 @@ func (f *fakeStore) CreateContract(_ context.Context, filename, rawText string) 
 	return c, nil
 }
 
+var errNotFound = errors.New("contract not found")
+
 func (f *fakeStore) GetContract(_ context.Context, id string) (domain.Contract, error) {
-	return f.contracts[id], nil
+	c, ok := f.contracts[id]
+	if !ok {
+		return domain.Contract{}, fmt.Errorf("%s: %w", id, errNotFound)
+	}
+	return c, nil
 }
 
 func (f *fakeStore) UpdateContractStatus(_ context.Context, id string, s domain.ContractStatus) error {
