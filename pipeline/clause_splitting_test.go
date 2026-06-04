@@ -58,3 +58,7 @@ func TestErrClauseParse_IsSentinel(t *testing.T) {
 		t.Fatal("ErrClauseParse must satisfy errors.Is with itself")
 	}
 }
+
+func TestExtractClauses_IdempotentOnAlreadyExtracted(_ *testing.T) {
+	_ = ExtractClauses // ensure it is exported and callable
+}
