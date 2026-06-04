@@ -6,8 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+
+	ledongthuc "github.com/ledongthuc/pdf"
 )
 
 var ErrNotPDF = errors.New("not a PDF file")
@@ -35,9 +38,53 @@ func validatePDF(path string) error {
 }
 
 func ExtractText(ctx context.Context, path string) (string, error) {
-	_ = ctx
 	if err := validatePDF(path); err != nil {
 		return "", err
 	}
-	return "", nil
+
+	text, err := extractWithLibrary(path)
+	if err == nil && strings.TrimSpace(text) != "" {
+		return text, nil
+	}
+
+	if fallback, ok := extractWithPdftotext(ctx, path); ok && strings.TrimSpace(fallback) != "" {
+		return fallback, nil
+	}
+
+	if err != nil {
+		return "", fmt.Errorf("extract %s: %w", path, err)
+	}
+	return text, nil
+}
+
+func extractWithLibrary(path string) (string, error) {
+	f, r, err := ledongthuc.Open(path)
+	if err != nil {
+		return "", fmt.Errorf("pdf open: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	reader, err := r.GetPlainText()
+	if err != nil {
+		return "", fmt.Errorf("pdf plain text: %w", err)
+	}
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(reader); err != nil {
+		return "", fmt.Errorf("pdf read: %w", err)
+	}
+	return buf.String(), nil
+}
+
+func extractWithPdftotext(ctx context.Context, path string) (string, bool) {
+	bin, err := exec.LookPath("pdftotext")
+	if err != nil {
+		return "", false
+	}
+	var out bytes.Buffer
+	cmd := exec.CommandContext(ctx, bin, "-layout", path, "-")
+	cmd.Stdout = &out
+	if err := cmd.Run(); err != nil {
+		return "", false
+	}
+	return out.String(), true
 }

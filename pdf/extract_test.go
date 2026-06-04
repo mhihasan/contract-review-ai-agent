@@ -3,6 +3,7 @@ package pdf
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -20,5 +21,15 @@ func TestExtractText_MissingFile(t *testing.T) {
 	}
 	if errors.Is(err, ErrNotPDF) {
 		t.Fatalf("missing file should not be ErrNotPDF, got %v", err)
+	}
+}
+
+func TestExtractText_ReadsTextLayer(t *testing.T) {
+	text, err := ExtractText(context.Background(), "testdata/sample.pdf")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.TrimSpace(text) == "" {
+		t.Fatal("expected non-empty extracted text, got empty")
 	}
 }
