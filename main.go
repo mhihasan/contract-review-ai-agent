@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -15,6 +16,11 @@ import (
 )
 
 func main() {
+	if len(os.Args) < 2 {
+		usage()
+		os.Exit(2)
+	}
+
 	_ = godotenv.Load()
 
 	cfg, err := config.Load()
@@ -47,15 +53,10 @@ func main() {
 
 	s := store.NewPostgresStore(pool)
 
-	if len(os.Args) < 2 {
-		usage()
-		os.Exit(2)
-	}
-
 	switch os.Args[1] {
 	case "extract":
 		if len(os.Args) < 3 {
-			slog.Error("extract requires a path", "usage", "go run . extract <path/to/contract.pdf>")
+			usage()
 			os.Exit(2)
 		}
 		id, err := pipeline.RunExtract(ctx, s, pdf.ExtractText, os.Args[2])
@@ -75,6 +76,5 @@ func main() {
 }
 
 func usage() {
-	slog.Error("usage: contract-review-ai-agent <command> [args]",
-		"commands", "extract <path/to/contract.pdf>")
+	fmt.Fprintf(os.Stderr, "usage: %s <command> [args]\n\ncommands:\n  extract <path/to/contract.pdf>\n", os.Args[0])
 }
