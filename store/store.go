@@ -2,9 +2,12 @@ package store
 
 import (
 	"context"
+	"errors"
 
 	"github.com/mhihasan/contract-review-ai-agent/domain"
 )
+
+var ErrNotFound = errors.New("not found")
 
 type Store interface {
 	CreateContract(ctx context.Context, filename, rawText string) (domain.Contract, error)

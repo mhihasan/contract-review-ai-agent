@@ -6,7 +6,10 @@ import (
 	"strings"
 
 	"github.com/mhihasan/contract-review-ai-agent/domain"
+	"github.com/mhihasan/contract-review-ai-agent/store"
 )
+
+var _ store.Store = (*MemoryStore)(nil)
 
 type MemoryStore struct {
 	contracts map[string]domain.Contract
@@ -92,5 +95,5 @@ func (m *MemoryStore) GetStandardClause(_ context.Context, clauseType string) (d
 			return c, nil
 		}
 	}
-	return domain.LibraryClause{}, fmt.Errorf("clause type %q not found", clauseType)
+	return domain.LibraryClause{}, fmt.Errorf("clause type %q: %w", clauseType, store.ErrNotFound)
 }

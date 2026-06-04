@@ -3,6 +3,7 @@ package tool
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -103,12 +104,16 @@ func (t *GetContractSection) Execute(ctx context.Context, args json.RawMessage) 
 		return "", fmt.Errorf("get clauses: %w", err)
 	}
 
+	// sequence-number lookup takes priority over substring to avoid false matches
+	// on clauses whose text contains the digit (e.g. "30-day" matching reference "3")
+	for _, c := range clauses {
+		if fmt.Sprintf("%d", c.SequenceNumber) == req.Reference {
+			return c.Text, nil
+		}
+	}
 	refLower := strings.ToLower(req.Reference)
 	for _, c := range clauses {
 		if strings.Contains(strings.ToLower(c.Text), refLower) {
-			return c.Text, nil
-		}
-		if fmt.Sprintf("%d", c.SequenceNumber) == req.Reference {
 			return c.Text, nil
 		}
 	}
@@ -116,14 +121,13 @@ func (t *GetContractSection) Execute(ctx context.Context, args json.RawMessage) 
 }
 
 type SearchClauseLibrary struct {
-	store      store.Store
-	contractID string
+	store store.Store
 }
 
 var _ Tool = (*SearchClauseLibrary)(nil)
 
-func NewSearchClauseLibrary(s store.Store, contractID string) *SearchClauseLibrary {
-	return &SearchClauseLibrary{store: s, contractID: contractID}
+func NewSearchClauseLibrary(s store.Store, _ string) *SearchClauseLibrary {
+	return &SearchClauseLibrary{store: s}
 }
 
 func (t *SearchClauseLibrary) Name() string { return "search_clause_library" }
@@ -171,14 +175,13 @@ func (t *SearchClauseLibrary) Execute(ctx context.Context, args json.RawMessage)
 }
 
 type LookupStandardClause struct {
-	store      store.Store
-	contractID string
+	store store.Store
 }
 
 var _ Tool = (*LookupStandardClause)(nil)
 
-func NewLookupStandardClause(s store.Store, contractID string) *LookupStandardClause {
-	return &LookupStandardClause{store: s, contractID: contractID}
+func NewLookupStandardClause(s store.Store, _ string) *LookupStandardClause {
+	return &LookupStandardClause{store: s}
 }
 
 func (t *LookupStandardClause) Name() string { return "lookup_standard_clause" }
@@ -208,7 +211,10 @@ func (t *LookupStandardClause) Execute(ctx context.Context, args json.RawMessage
 
 	c, err := t.store.GetStandardClause(ctx, req.ClauseType)
 	if err != nil {
-		return fmt.Sprintf("standard clause for type %q not found", req.ClauseType), nil
+		if errors.Is(err, store.ErrNotFound) {
+			return fmt.Sprintf("standard clause for type %q not found", req.ClauseType), nil
+		}
+		return "", fmt.Errorf("lookup standard clause: %w", err)
 	}
 	result := fmt.Sprintf("Type: %s\n\nStandard text:\n%s", c.ClauseType, c.StandardText)
 	if c.Notes != "" {

@@ -2,9 +2,11 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -207,7 +209,10 @@ func (s *PostgresStore) SearchClauseLibrary(ctx context.Context, query string) (
 		}
 		out = append(out, c)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("search clause library rows: %w", err)
+	}
+	return out, nil
 }
 
 func (s *PostgresStore) GetStandardClause(ctx context.Context, clauseType string) (domain.LibraryClause, error) {
@@ -217,6 +222,9 @@ func (s *PostgresStore) GetStandardClause(ctx context.Context, clauseType string
 		clauseType,
 	).Scan(&c.ID, &c.ClauseType, &c.StandardText, &c.Notes)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.LibraryClause{}, fmt.Errorf("get standard clause: %w", ErrNotFound)
+		}
 		return domain.LibraryClause{}, fmt.Errorf("get standard clause: %w", err)
 	}
 	return c, nil
