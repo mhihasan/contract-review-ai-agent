@@ -28,7 +28,7 @@ func validatePDF(path string) error {
 	if _, err := f.Read(header); err != nil {
 		return fmt.Errorf("read header %s: %w", path, err)
 	}
-	if !bytes.HasPrefix(header, pdfMagic) {
+	if !bytes.Equal(header, pdfMagic) {
 		return fmt.Errorf("%s: %w", path, ErrNotPDF)
 	}
 	return nil
