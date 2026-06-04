@@ -70,3 +70,17 @@ func (q *Queries) UpdateContractStatus(ctx context.Context, arg UpdateContractSt
 	_, err := q.db.Exec(ctx, updateContractStatus, arg.ID, arg.Status)
 	return err
 }
+
+const updateContractText = `-- name: UpdateContractText :exec
+UPDATE contracts SET raw_text = $2 WHERE id = $1
+`
+
+type UpdateContractTextParams struct {
+	ID      string
+	RawText string
+}
+
+func (q *Queries) UpdateContractText(ctx context.Context, arg UpdateContractTextParams) error {
+	_, err := q.db.Exec(ctx, updateContractText, arg.ID, arg.RawText)
+	return err
+}
