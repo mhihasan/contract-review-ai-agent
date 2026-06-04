@@ -68,3 +68,25 @@ func TestLoad_CustomLogLevel(t *testing.T) {
 		t.Errorf("expected LogLevel=debug, got %q", cfg.LogLevel)
 	}
 }
+
+func TestLoad_LLMFields(t *testing.T) {
+	t.Setenv("OPENAI_API_KEY", "sk-test")
+	t.Setenv("DATABASE_URL", "postgres://localhost/test")
+	t.Setenv("LLM_PROVIDER", "openai")
+	t.Setenv("LLM_MODEL", "gpt-4o-mini")
+	t.Setenv("LLM_TEMPERATURE", "0.5")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.LLMProvider != "openai" {
+		t.Errorf("LLMProvider = %q, want %q", cfg.LLMProvider, "openai")
+	}
+	if cfg.LLMModel != "gpt-4o-mini" {
+		t.Errorf("LLMModel = %q, want %q", cfg.LLMModel, "gpt-4o-mini")
+	}
+	if cfg.LLMTemperature != 0.5 {
+		t.Errorf("LLMTemperature = %v, want 0.5", cfg.LLMTemperature)
+	}
+}

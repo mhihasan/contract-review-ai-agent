@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	openai "github.com/openai/openai-go/v3"
 
 	"github.com/mhihasan/contract-review-ai-agent/domain"
+	"github.com/mhihasan/contract-review-ai-agent/llm"
 	"github.com/mhihasan/contract-review-ai-agent/prompts"
 	"github.com/mhihasan/contract-review-ai-agent/store"
 )
@@ -34,30 +34,20 @@ func parseClauses(raw string) ([]string, error) {
 	return clauses, nil
 }
 
-func complete(ctx context.Context, client *openai.Client, model, prompt string) (string, error) {
-	resp, err := client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-		Model: model,
-		Messages: []openai.ChatCompletionMessageParamUnion{
-			openai.UserMessage(prompt),
-		},
-	})
-	if err != nil {
-		return "", fmt.Errorf("openai completion: %w", err)
-	}
-	if len(resp.Choices) == 0 {
-		return "", fmt.Errorf("openai returned no choices")
-	}
-	return resp.Choices[0].Message.Content, nil
-}
-
-func extractClausesFromLLM(ctx context.Context, client *openai.Client, model, contractText string) ([]string, error) {
+func extractClausesFromLLM(ctx context.Context, client llm.LLM, contractText string) ([]string, error) {
 	prompt := prompts.ClauseExtractionPrompt{ContractText: contractText}
 	for attempt := 0; attempt < 3; attempt++ {
-		raw, err := complete(ctx, client, model, prompt.Render())
+		resp, err := client.Complete(ctx, llm.CompletionRequest{
+			Messages: []llm.Message{
+				{Role: llm.RoleUser, Content: prompt.Render()},
+			},
+			MaxTokens:   2048,
+			Temperature: 0.2,
+		})
 		if err != nil {
 			return nil, err
 		}
-		clauses, perr := parseClauses(raw)
+		clauses, perr := parseClauses(resp.Content)
 		if perr == nil {
 			return clauses, nil
 		}
@@ -65,7 +55,7 @@ func extractClausesFromLLM(ctx context.Context, client *openai.Client, model, co
 	return nil, ErrClauseParse
 }
 
-func ExtractClauses(ctx context.Context, client *openai.Client, model string, s store.Store, contractID string) error {
+func ExtractClauses(ctx context.Context, client llm.LLM, s store.Store, contractID string) error {
 	contract, err := s.GetContract(ctx, contractID)
 	if err != nil {
 		return fmt.Errorf("get contract: %w", err)
@@ -83,7 +73,7 @@ func ExtractClauses(ctx context.Context, client *openai.Client, model string, s 
 		return fmt.Errorf("update status to analyzing_clauses: %w", err)
 	}
 
-	texts, err := extractClausesFromLLM(ctx, client, model, contract.RawText)
+	texts, err := extractClausesFromLLM(ctx, client, contract.RawText)
 	if err != nil {
 		return fmt.Errorf("extract clauses from llm: %w", err)
 	}

@@ -201,3 +201,55 @@ func TestSaveSummary_Upsert(t *testing.T) {
 		t.Errorf("expected upserted content, got %q", got.Content)
 	}
 }
+
+func TestPostgresStore_SearchClauseLibrary(t *testing.T) {
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		t.Skip("DATABASE_URL not set")
+	}
+	ctx := context.Background()
+	pool, err := store.NewPool(ctx, dbURL)
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	defer pool.Close()
+
+	s := store.NewPostgresStore(pool)
+	results, err := s.SearchClauseLibrary(ctx, "liability")
+	if err != nil {
+		t.Fatalf("SearchClauseLibrary: %v", err)
+	}
+	if len(results) == 0 {
+		t.Fatal("expected at least one result for 'liability'")
+	}
+	for _, r := range results {
+		if r.ID == "" || r.ClauseType == "" || r.StandardText == "" {
+			t.Errorf("incomplete row: %+v", r)
+		}
+	}
+}
+
+func TestPostgresStore_GetStandardClause(t *testing.T) {
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		t.Skip("DATABASE_URL not set")
+	}
+	ctx := context.Background()
+	pool, err := store.NewPool(ctx, dbURL)
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	defer pool.Close()
+
+	s := store.NewPostgresStore(pool)
+	c, err := s.GetStandardClause(ctx, "liability")
+	if err != nil {
+		t.Fatalf("GetStandardClause: %v", err)
+	}
+	if c.ClauseType != "liability" {
+		t.Errorf("ClauseType = %q, want %q", c.ClauseType, "liability")
+	}
+	if c.StandardText == "" {
+		t.Error("StandardText must not be empty")
+	}
+}

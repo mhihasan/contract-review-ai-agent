@@ -2,9 +2,12 @@ package store
 
 import (
 	"context"
+	"errors"
 
 	"github.com/mhihasan/contract-review-ai-agent/domain"
 )
+
+var ErrNotFound = errors.New("not found")
 
 type Store interface {
 	CreateContract(ctx context.Context, filename, rawText string) (domain.Contract, error)
@@ -23,4 +26,7 @@ type Store interface {
 
 	SaveSummary(ctx context.Context, contractID, content string) error
 	GetSummary(ctx context.Context, contractID string) (domain.Summary, error)
+
+	SearchClauseLibrary(ctx context.Context, query string) ([]domain.LibraryClause, error)
+	GetStandardClause(ctx context.Context, clauseType string) (domain.LibraryClause, error)
 }
