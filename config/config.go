@@ -15,6 +15,9 @@ type Config struct {
 	LLMProvider     string
 	LLMModel        string
 	LLMTemperature  float64
+	ContextWindow   int
+	CompactRatio    float64
+	KeepRecent      int
 }
 
 func Load() (Config, error) {
@@ -65,6 +68,27 @@ func Load() (Config, error) {
 		}
 	}
 
+	contextWindow := 100000
+	if s := os.Getenv("AGENT_CONTEXT_WINDOW"); s != "" {
+		if v, err := strconv.Atoi(s); err == nil {
+			contextWindow = v
+		}
+	}
+
+	compactRatio := 0.8
+	if s := os.Getenv("AGENT_COMPACT_RATIO"); s != "" {
+		if v, err := strconv.ParseFloat(s, 64); err == nil {
+			compactRatio = v
+		}
+	}
+
+	keepRecent := 4
+	if s := os.Getenv("AGENT_KEEP_RECENT"); s != "" {
+		if v, err := strconv.Atoi(s); err == nil {
+			keepRecent = v
+		}
+	}
+
 	return Config{
 		OpenAIAPIKey:    openAIKey,
 		AnthropicAPIKey: anthropicKey,
@@ -73,5 +97,8 @@ func Load() (Config, error) {
 		LLMProvider:     provider,
 		LLMModel:        model,
 		LLMTemperature:  temp,
+		ContextWindow:   contextWindow,
+		CompactRatio:    compactRatio,
+		KeepRecent:      keepRecent,
 	}, nil
 }
