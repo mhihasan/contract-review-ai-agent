@@ -14,7 +14,7 @@ type MemoryStore struct {
 	library   []domain.LibraryClause
 }
 
-func NewMemoryStore() *MemoryStore {
+func newMemoryStore() *MemoryStore {
 	return &MemoryStore{
 		contracts: make(map[string]domain.Contract),
 		clauses:   make(map[string][]domain.Clause),
