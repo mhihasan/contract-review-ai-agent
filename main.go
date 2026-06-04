@@ -11,7 +11,7 @@ import (
 	"github.com/openai/openai-go/v3/option"
 
 	"github.com/mhihasan/contract-review-ai-agent/config"
-	"github.com/mhihasan/contract-review-ai-agent/llm"
+	"github.com/mhihasan/contract-review-ai-agent/pipeline"
 	"github.com/mhihasan/contract-review-ai-agent/store"
 )
 
@@ -47,13 +47,27 @@ func main() {
 	defer pool.Close()
 
 	s := store.NewPostgresStore(pool)
-	slog.Info("postgres ready", "store", fmt.Sprintf("%T", s))
-
 	client := openai.NewClient(option.WithAPIKey(cfg.OpenAIAPIKey))
-	text, err := llm.Hello(ctx, &client, "gpt-4o-mini")
-	if err != nil {
-		slog.Error("llm call failed", "error", err)
+
+	if len(os.Args) < 2 {
+		fmt.Fprintln(os.Stderr, "usage: contract-review-ai-agent <command> [args]")
+		fmt.Fprintln(os.Stderr, "commands: extract-clauses <contract_id>")
 		os.Exit(1)
 	}
-	slog.Info("llm response", "text", text)
+
+	switch os.Args[1] {
+	case "extract-clauses":
+		if len(os.Args) < 3 {
+			fmt.Fprintln(os.Stderr, "usage: extract-clauses <contract_id>")
+			os.Exit(1)
+		}
+		contractID := os.Args[2]
+		if err := pipeline.ExtractClauses(ctx, &client, "gpt-4o-mini", s, contractID); err != nil {
+			slog.Error("extract-clauses failed", "error", err)
+			os.Exit(1)
+		}
+	default:
+		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
+		os.Exit(1)
+	}
 }
