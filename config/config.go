@@ -18,6 +18,11 @@ type Config struct {
 	ContextWindow   int
 	CompactRatio    float64
 	KeepRecent      int
+	AgentMaxTokens  int
+	AgentMaxCostUSD float64
+	RunMaxTokens    int
+	RunMaxCostUSD   float64
+	RunMaxSteps     int
 }
 
 func Load() (Config, error) {
@@ -89,6 +94,41 @@ func Load() (Config, error) {
 		}
 	}
 
+	agentMaxTokens := 50000
+	if s := os.Getenv("AGENT_MAX_TOKENS"); s != "" {
+		if v, err := strconv.Atoi(s); err == nil {
+			agentMaxTokens = v
+		}
+	}
+
+	agentMaxCostUSD := 0.50
+	if s := os.Getenv("AGENT_MAX_COST_USD"); s != "" {
+		if v, err := strconv.ParseFloat(s, 64); err == nil {
+			agentMaxCostUSD = v
+		}
+	}
+
+	runMaxTokens := 500000
+	if s := os.Getenv("RUN_MAX_TOKENS"); s != "" {
+		if v, err := strconv.Atoi(s); err == nil {
+			runMaxTokens = v
+		}
+	}
+
+	runMaxCostUSD := 5.00
+	if s := os.Getenv("RUN_MAX_COST_USD"); s != "" {
+		if v, err := strconv.ParseFloat(s, 64); err == nil {
+			runMaxCostUSD = v
+		}
+	}
+
+	runMaxSteps := 200
+	if s := os.Getenv("RUN_MAX_STEPS"); s != "" {
+		if v, err := strconv.Atoi(s); err == nil {
+			runMaxSteps = v
+		}
+	}
+
 	return Config{
 		OpenAIAPIKey:    openAIKey,
 		AnthropicAPIKey: anthropicKey,
@@ -100,5 +140,10 @@ func Load() (Config, error) {
 		ContextWindow:   contextWindow,
 		CompactRatio:    compactRatio,
 		KeepRecent:      keepRecent,
+		AgentMaxTokens:  agentMaxTokens,
+		AgentMaxCostUSD: agentMaxCostUSD,
+		RunMaxTokens:    runMaxTokens,
+		RunMaxCostUSD:   runMaxCostUSD,
+		RunMaxSteps:     runMaxSteps,
 	}, nil
 }

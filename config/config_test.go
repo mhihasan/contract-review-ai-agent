@@ -135,3 +135,65 @@ func TestLoad_contextFromEnv(t *testing.T) {
 		t.Errorf("KeepRecent = %d, want 6", cfg.KeepRecent)
 	}
 }
+
+func TestConfig_BudgetEnvVars_Defaults(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://localhost/test")
+	t.Setenv("OPENAI_API_KEY", "test-key")
+	// Unset budget vars to confirm defaults.
+	for _, key := range []string{
+		"AGENT_MAX_TOKENS", "AGENT_MAX_COST_USD",
+		"RUN_MAX_TOKENS", "RUN_MAX_COST_USD", "RUN_MAX_STEPS",
+	} {
+		t.Setenv(key, "")
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.AgentMaxTokens != 50000 {
+		t.Errorf("AgentMaxTokens = %d, want 50000", cfg.AgentMaxTokens)
+	}
+	if cfg.AgentMaxCostUSD != 0.50 {
+		t.Errorf("AgentMaxCostUSD = %v, want 0.50", cfg.AgentMaxCostUSD)
+	}
+	if cfg.RunMaxTokens != 500000 {
+		t.Errorf("RunMaxTokens = %d, want 500000", cfg.RunMaxTokens)
+	}
+	if cfg.RunMaxCostUSD != 5.00 {
+		t.Errorf("RunMaxCostUSD = %v, want 5.00", cfg.RunMaxCostUSD)
+	}
+	if cfg.RunMaxSteps != 200 {
+		t.Errorf("RunMaxSteps = %d, want 200", cfg.RunMaxSteps)
+	}
+}
+
+func TestConfig_BudgetEnvVars_Override(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://localhost/test")
+	t.Setenv("OPENAI_API_KEY", "test-key")
+	t.Setenv("AGENT_MAX_TOKENS", "99999")
+	t.Setenv("AGENT_MAX_COST_USD", "1.23")
+	t.Setenv("RUN_MAX_TOKENS", "888888")
+	t.Setenv("RUN_MAX_COST_USD", "9.99")
+	t.Setenv("RUN_MAX_STEPS", "42")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.AgentMaxTokens != 99999 {
+		t.Errorf("AgentMaxTokens = %d, want 99999", cfg.AgentMaxTokens)
+	}
+	if cfg.AgentMaxCostUSD != 1.23 {
+		t.Errorf("AgentMaxCostUSD = %v, want 1.23", cfg.AgentMaxCostUSD)
+	}
+	if cfg.RunMaxTokens != 888888 {
+		t.Errorf("RunMaxTokens = %d, want 888888", cfg.RunMaxTokens)
+	}
+	if cfg.RunMaxCostUSD != 9.99 {
+		t.Errorf("RunMaxCostUSD = %v, want 9.99", cfg.RunMaxCostUSD)
+	}
+	if cfg.RunMaxSteps != 42 {
+		t.Errorf("RunMaxSteps = %d, want 42", cfg.RunMaxSteps)
+	}
+}
