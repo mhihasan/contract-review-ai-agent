@@ -42,11 +42,12 @@ func ParseRiskLevel(s string) (RiskLevel, error) {
 }
 
 type Contract struct {
-	ID        string
-	Filename  string
-	RawText   string
-	Status    ContractStatus
-	CreatedAt time.Time
+	ID             string
+	Filename       string
+	RawText        string
+	Status         ContractStatus
+	RequiresReview bool
+	CreatedAt      time.Time
 }
 
 type Clause struct {
