@@ -1,4 +1,4 @@
-# Contract Review
+# AI Contract Reviewer
 
 Point it at a PDF contract, and it reads every clause, scores the risk, and writes a report telling you what to sign, what to push back on, and what to reject outright. You can also wire in a human review step before the report gets generated.
 
@@ -54,7 +54,7 @@ The agent has to finish by calling `submit_finding` with a structured result —
 
 ---
 
-## For developers: inside the agent loop
+## Inside the agent loop
 
 The agent runs a tool-calling loop, not a one-shot prompt. It calls tools, reads the results, decides what else it needs, and keeps going until it has enough to submit a finding. Max steps is configurable (default 12).
 
@@ -68,13 +68,7 @@ Tools the agent can call:
 | `lookup_standard_clause` | Gets the full baseline text for a clause type — used to spot deviations |
 | `submit_finding` | The only way to finish. Requires risk level, explanation, and recommendations. |
 
-**Context management.** On long contracts the message history grows. When it hits the compaction threshold: tool results get truncated first, then the middle of the history gets summarized with a separate LLM call, then dropped entirely if it's still too large. The initial prompt and recent messages are always kept.
-
-**Budget enforcement.** One `Budget` object is shared across all concurrent agents. It's checked before each LLM call, not after — so a clause that would push over the limit doesn't start, rather than finishing and then failing to save.
-
-**Tracing.** Every message and tool call is stored in `agent_steps`. Run `trace <clause_id>` to replay the full step trajectory for any clause — what it called, what came back, how many steps to a finding.
-
-### Agentic engineering practices
+## Agentic engineering practices
 
 - **Structured output via tool forcing.** The agent can only finish by calling `submit_finding`. There's no code path where it outputs prose and exits. Risk level is an enum — `high`, `medium`, `low` — validated at call time. If the agent tries to submit without an explanation or recommendations, the call is rejected and it has to try again.
 - **Tool-use loop with bounded steps.** The agent runs a proper tool-calling loop, not a chain of prompts. Each step it decides what it needs, calls a tool, reads the result, and decides what's next. Max steps is capped (default 12) to prevent infinite loops on ambiguous clauses.
