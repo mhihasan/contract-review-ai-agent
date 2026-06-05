@@ -14,7 +14,7 @@ import (
 	"github.com/mhihasan/contract-review-ai-agent/tokens"
 )
 
-func RunSummarize(ctx context.Context, s store.Store, client llm.LLM, contractID string, clauseTokenBudget int, model string, outputDir string) error {
+func RunSummarize(ctx context.Context, s store.Store, client llm.LLM, contractID string, clauseTokenBudget int, model string, outputDir string, reviewingParty string, governingLaw string, contractType string) error {
 	contract, err := s.GetContract(ctx, contractID)
 	if err != nil {
 		return fmt.Errorf("get contract: %w", err)
@@ -66,10 +66,13 @@ func RunSummarize(ctx context.Context, s store.Store, client llm.LLM, contractID
 	riskCounts, reviewCounts, clauseInputs := buildInputs(clauses, analysisByClause, reviewByClause, model, clauseTokenBudget)
 
 	p := prompts.SummarizationPrompt{
-		Filename:     contract.Filename,
-		RiskCounts:   riskCounts,
-		ReviewCounts: reviewCounts,
-		ClauseInputs: clauseInputs,
+		Filename:       contract.Filename,
+		ReviewingParty: reviewingParty,
+		GoverningLaw:   governingLaw,
+		ContractType:   contractType,
+		RiskCounts:     riskCounts,
+		ReviewCounts:   reviewCounts,
+		ClauseInputs:   clauseInputs,
 	}
 
 	resp, err := client.Complete(ctx, llm.CompletionRequest{
@@ -148,13 +151,17 @@ func buildInputs(
 		}
 
 		gist := truncateToTokenBudget(analysis.Explanation, model, clauseTokenBudget)
+		recs := truncateToTokenBudget(analysis.Recommendations, model, clauseTokenBudget)
+		ambig := analysis.AmbiguousLanguage
 
 		inputs = append(inputs, prompts.ClauseInput{
-			SequenceNumber: clause.SequenceNumber,
-			Gist:           gist,
-			RiskLevel:      riskStr,
-			Decision:       decision,
-			Annotation:     review.Annotation,
+			SequenceNumber:    clause.SequenceNumber,
+			Gist:              gist,
+			RiskLevel:         riskStr,
+			Decision:          decision,
+			Annotation:        review.Annotation,
+			Recommendations:   recs,
+			AmbiguousLanguage: ambig,
 		})
 	}
 

@@ -16,7 +16,7 @@ func TestRunSummarize_WrongStatus(t *testing.T) {
 	contract, _ := s.CreateContract(context.Background(), "test.pdf", "raw text")
 	_ = s.UpdateContractStatus(context.Background(), contract.ID, domain.StatusAnalyzed)
 
-	err := pipeline.RunSummarize(context.Background(), s, llm.NewFake(""), contract.ID, 200, "gpt-4o-mini", "")
+	err := pipeline.RunSummarize(context.Background(), s, llm.NewFake(""), contract.ID, 200, "gpt-4o-mini", "", "client", "", "")
 	if err == nil {
 		t.Fatal("expected error for wrong status, got nil")
 	}
@@ -34,7 +34,7 @@ func TestRunSummarize_AlreadyDone_NoOp(t *testing.T) {
 	callCount := 0
 	fakeLLM := llm.NewFakeWithHook("", func() { callCount++ })
 
-	err := pipeline.RunSummarize(context.Background(), s, fakeLLM, contract.ID, 200, "gpt-4o-mini", "")
+	err := pipeline.RunSummarize(context.Background(), s, fakeLLM, contract.ID, 200, "gpt-4o-mini", "", "client", "", "")
 	if err != nil {
 		t.Fatalf("unexpected error on done contract: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestRunSummarize_ComputesRiskCounts(t *testing.T) {
 	captured := ""
 	fakeLLM := llm.NewFakeCapture(&captured)
 
-	err := pipeline.RunSummarize(context.Background(), s, fakeLLM, contract.ID, 200, "gpt-4o-mini", "")
+	err := pipeline.RunSummarize(context.Background(), s, fakeLLM, contract.ID, 200, "gpt-4o-mini", "", "client", "", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestRunSummarize_StatusTransitions(t *testing.T) {
 	_ = s.SaveAnalysis(context.Background(), domain.ClauseAnalysis{ID: "a1", ClauseID: "c1", RiskLevel: &low, Status: "submitted"})
 	_ = s.SaveReview(context.Background(), domain.Review{ID: "r1", ClauseID: "c1", Decision: "approved"})
 
-	err := pipeline.RunSummarize(context.Background(), s, llm.NewFake("# Report\n\nAll good."), contract.ID, 200, "gpt-4o-mini", "")
+	err := pipeline.RunSummarize(context.Background(), s, llm.NewFake("# Report\n\nAll good."), contract.ID, 200, "gpt-4o-mini", "", "client", "", "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

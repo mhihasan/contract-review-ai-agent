@@ -109,7 +109,7 @@ func main() {
 			os.Exit(1)
 		}
 		if err := pipeline.RunResume(ctx, s, os.Args[2], func(ctx context.Context, s store.Store, id string) error {
-			return pipeline.RunSummarize(ctx, s, client, id, cfg.SummaryClauseTokenBudget, cfg.LLMModel, ".")
+			return pipeline.RunSummarize(ctx, s, client, id, cfg.SummaryClauseTokenBudget, cfg.LLMModel, ".", "client", "", "")
 		}); err != nil {
 			slog.Error("resume failed", "error", err)
 			os.Exit(1)
@@ -176,7 +176,7 @@ func main() {
 			fmt.Fprintln(os.Stderr, "usage: summarize <contract_id>")
 			os.Exit(1)
 		}
-		if err := pipeline.RunSummarize(ctx, s, client, os.Args[2], cfg.SummaryClauseTokenBudget, cfg.LLMModel, "."); err != nil {
+		if err := pipeline.RunSummarize(ctx, s, client, os.Args[2], cfg.SummaryClauseTokenBudget, cfg.LLMModel, ".", "client", "", ""); err != nil {
 			slog.Error("summarize failed", "error", err)
 			os.Exit(1)
 		}
@@ -230,7 +230,10 @@ func runPostAnalysis(ctx context.Context, cfg config.Config, client llm.LLM, s s
 		return nil
 	}
 
-	return pipeline.RunSummarize(ctx, s, client, contractID, cfg.SummaryClauseTokenBudget, cfg.LLMModel, ".")
+	if err := s.UpdateContractStatus(ctx, contractID, domain.StatusReviewComplete); err != nil {
+		return fmt.Errorf("set review_complete: %w", err)
+	}
+	return pipeline.RunSummarize(ctx, s, client, contractID, cfg.SummaryClauseTokenBudget, cfg.LLMModel, ".", "client", "", "")
 }
 
 func runAnalyze(ctx context.Context, cfg config.Config, client llm.LLM, s store.Store, contractID string) error {
@@ -319,6 +322,7 @@ func runAnalyzeClause(ctx context.Context, cfg config.Config, client llm.LLM, s 
 		tool.NewGetContractSection(s, contractID),
 		tool.NewSearchClauseLibrary(s, contractID),
 		tool.NewLookupStandardClause(s, contractID),
+		tool.NewSubmitFinding(nil),
 	)
 
 	ctxMgr := agent.NewContextManager(
