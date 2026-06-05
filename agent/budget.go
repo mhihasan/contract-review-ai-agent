@@ -7,29 +7,33 @@ import (
 )
 
 type BudgetSnapshot struct {
-	UsedTokens  int
-	UsedCostUSD float64
-	UsedSteps   int
-	MaxTokens   int
-	MaxCostUSD  float64
-	MaxSteps    int
+	UsedTokens       int
+	UsedInputTokens  int
+	UsedOutputTokens int
+	UsedCostUSD      float64
+	UsedSteps        int
+	MaxTokens        int
+	MaxCostUSD       float64
+	MaxSteps         int
 }
 
 func (s BudgetSnapshot) AsUsage() Usage {
 	return Usage{
-		InputTokens:  s.UsedTokens,
-		OutputTokens: 0,
+		InputTokens:  s.UsedInputTokens,
+		OutputTokens: s.UsedOutputTokens,
 	}
 }
 
 type Budget struct {
-	mu          sync.Mutex
-	maxTokens   int
-	maxCostUSD  float64
-	maxSteps    int
-	usedTokens  int
-	usedCostUSD float64
-	usedSteps   int
+	mu               sync.Mutex
+	maxTokens        int
+	maxCostUSD       float64
+	maxSteps         int
+	usedTokens       int
+	usedInputTokens  int
+	usedOutputTokens int
+	usedCostUSD      float64
+	usedSteps        int
 }
 
 func NewBudget(maxTokens int, maxCostUSD float64, maxSteps int) *Budget {
@@ -44,6 +48,8 @@ func (b *Budget) Record(provider, model string, in, out int) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.usedTokens += in + out
+	b.usedInputTokens += in
+	b.usedOutputTokens += out
 	b.usedCostUSD += cost.Estimate(provider, model, in, out)
 	b.usedSteps++
 }
@@ -67,11 +73,13 @@ func (b *Budget) Snapshot() BudgetSnapshot {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return BudgetSnapshot{
-		UsedTokens:  b.usedTokens,
-		UsedCostUSD: b.usedCostUSD,
-		UsedSteps:   b.usedSteps,
-		MaxTokens:   b.maxTokens,
-		MaxCostUSD:  b.maxCostUSD,
-		MaxSteps:    b.maxSteps,
+		UsedTokens:       b.usedTokens,
+		UsedInputTokens:  b.usedInputTokens,
+		UsedOutputTokens: b.usedOutputTokens,
+		UsedCostUSD:      b.usedCostUSD,
+		UsedSteps:        b.usedSteps,
+		MaxTokens:        b.maxTokens,
+		MaxCostUSD:       b.maxCostUSD,
+		MaxSteps:         b.maxSteps,
 	}
 }

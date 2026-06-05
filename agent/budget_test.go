@@ -50,6 +50,15 @@ func TestBudget_Snapshot_ReflectsAccumulatedUsage(t *testing.T) {
 	if snap.UsedCostUSD <= 0 {
 		t.Errorf("UsedCostUSD must be > 0, got %v", snap.UsedCostUSD)
 	}
+	if snap.MaxTokens != 100_000 {
+		t.Errorf("MaxTokens = %d, want 100000", snap.MaxTokens)
+	}
+	if snap.MaxCostUSD != 10.0 {
+		t.Errorf("MaxCostUSD = %v, want 10.0", snap.MaxCostUSD)
+	}
+	if snap.MaxSteps != 50 {
+		t.Errorf("MaxSteps = %d, want 50", snap.MaxSteps)
+	}
 }
 
 func TestBudget_UnlimitedCaps_NeverExceeded(t *testing.T) {
@@ -74,5 +83,8 @@ func TestBudget_Record_RaceFree(t *testing.T) {
 	snap := b.Snapshot()
 	if snap.UsedTokens != 2000 {
 		t.Errorf("UsedTokens = %d after 100 concurrent records of 20 tokens each, want 2000", snap.UsedTokens)
+	}
+	if snap.UsedSteps != 100 {
+		t.Errorf("UsedSteps = %d after 100 concurrent records, want 100", snap.UsedSteps)
 	}
 }
