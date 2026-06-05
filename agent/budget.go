@@ -69,6 +69,13 @@ func (b *Budget) Exceeded() bool {
 	return false
 }
 
+func (b *Budget) RestoreTokens(usedTokens int, usedCostUSD float64) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.usedTokens += usedTokens
+	b.usedCostUSD += usedCostUSD
+}
+
 func (b *Budget) Snapshot() BudgetSnapshot {
 	b.mu.Lock()
 	defer b.mu.Unlock()

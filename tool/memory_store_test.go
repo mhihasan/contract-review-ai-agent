@@ -97,3 +97,31 @@ func (m *MemoryStore) GetStandardClause(_ context.Context, clauseType string) (d
 	}
 	return domain.LibraryClause{}, fmt.Errorf("clause type %q: %w", clauseType, store.ErrNotFound)
 }
+
+func (m *MemoryStore) StartRun(_ context.Context, _, _ string) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (m *MemoryStore) FinishRun(_ context.Context, _, _ string) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (m *MemoryStore) StartAgentRun(_ context.Context, _, _, _ string) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (m *MemoryStore) AppendAgentStep(_ context.Context, _ string, _ int, _, _ []byte) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (m *MemoryStore) FinishAgentRun(_ context.Context, _ string, _ string, _, _ int, _ float64) error {
+	return fmt.Errorf("not implemented")
+}
+
+func (m *MemoryStore) LoadAgentRun(_ context.Context, _ string) (store.AgentRun, []store.AgentStep, bool, error) {
+	return store.AgentRun{}, nil, false, fmt.Errorf("not implemented")
+}
+
+func (m *MemoryStore) GetStoredFinding(_ context.Context, _ string) (domain.ClauseAnalysis, error) {
+	return domain.ClauseAnalysis{}, fmt.Errorf("not implemented")
+}

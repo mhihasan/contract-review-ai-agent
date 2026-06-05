@@ -78,6 +78,34 @@ func (m *pipelineMemoryStore) GetStandardClause(_ context.Context, clauseType st
 	return domain.LibraryClause{}, fmt.Errorf("not found")
 }
 
+func (m *pipelineMemoryStore) StartRun(_ context.Context, _, _ string) error {
+	panic("not implemented")
+}
+
+func (m *pipelineMemoryStore) FinishRun(_ context.Context, _, _ string) error {
+	panic("not implemented")
+}
+
+func (m *pipelineMemoryStore) StartAgentRun(_ context.Context, _, _, _ string) error {
+	panic("not implemented")
+}
+
+func (m *pipelineMemoryStore) AppendAgentStep(_ context.Context, _ string, _ int, _, _ []byte) error {
+	panic("not implemented")
+}
+
+func (m *pipelineMemoryStore) FinishAgentRun(_ context.Context, _ string, _ string, _, _ int, _ float64) error {
+	panic("not implemented")
+}
+
+func (m *pipelineMemoryStore) LoadAgentRun(_ context.Context, _ string) (store.AgentRun, []store.AgentStep, bool, error) {
+	return store.AgentRun{}, nil, false, fmt.Errorf("not implemented")
+}
+
+func (m *pipelineMemoryStore) GetStoredFinding(_ context.Context, _ string) (domain.ClauseAnalysis, error) {
+	return domain.ClauseAnalysis{}, fmt.Errorf("not implemented")
+}
+
 var _ store.Store = (*pipelineMemoryStore)(nil)
 
 func submitFindingResponse(callID string) llm.CompletionResponse {

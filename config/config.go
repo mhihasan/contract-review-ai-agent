@@ -23,6 +23,8 @@ type Config struct {
 	RunMaxTokens    int
 	RunMaxCostUSD   float64
 	RunMaxSteps     int
+	LLMMaxRetries   int
+	LLMRetryBaseMS  int
 }
 
 func Load() (Config, error) {
@@ -129,6 +131,20 @@ func Load() (Config, error) {
 		}
 	}
 
+	llmMaxRetries := 3
+	if s := os.Getenv("LLM_MAX_RETRIES"); s != "" {
+		if v, err := strconv.Atoi(s); err == nil {
+			llmMaxRetries = v
+		}
+	}
+
+	llmRetryBaseMS := 500
+	if s := os.Getenv("LLM_RETRY_BASE_MS"); s != "" {
+		if v, err := strconv.Atoi(s); err == nil {
+			llmRetryBaseMS = v
+		}
+	}
+
 	return Config{
 		OpenAIAPIKey:    openAIKey,
 		AnthropicAPIKey: anthropicKey,
@@ -145,5 +161,7 @@ func Load() (Config, error) {
 		RunMaxTokens:    runMaxTokens,
 		RunMaxCostUSD:   runMaxCostUSD,
 		RunMaxSteps:     runMaxSteps,
+		LLMMaxRetries:   llmMaxRetries,
+		LLMRetryBaseMS:  llmRetryBaseMS,
 	}, nil
 }

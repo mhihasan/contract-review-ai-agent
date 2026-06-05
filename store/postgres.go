@@ -291,3 +291,143 @@ func toDomainSummary(r db.Summary) domain.Summary {
 		CreatedAt:  r.CreatedAt.Time,
 	}
 }
+
+func (s *PostgresStore) StartRun(ctx context.Context, id, contractID string) error {
+	_, err := s.pool.Exec(ctx,
+		`INSERT INTO runs (id, contract_id, status) VALUES ($1, $2, 'running')`,
+		id, contractID,
+	)
+	if err != nil {
+		return fmt.Errorf("start run: %w", err)
+	}
+	return nil
+}
+
+func (s *PostgresStore) FinishRun(ctx context.Context, id, status string) error {
+	_, err := s.pool.Exec(ctx,
+		`UPDATE runs SET status=$2, ended_at=now() WHERE id=$1`,
+		id, status,
+	)
+	if err != nil {
+		return fmt.Errorf("finish run: %w", err)
+	}
+	return nil
+}
+
+func (s *PostgresStore) StartAgentRun(ctx context.Context, id, clauseID, runID string) error {
+	var runIDVal interface{} = runID
+	if runID == "" {
+		runIDVal = nil
+	}
+	_, err := s.pool.Exec(ctx,
+		`INSERT INTO agent_runs (id, clause_id, run_id, status) VALUES ($1, $2, $3, 'running')`,
+		id, clauseID, runIDVal,
+	)
+	if err != nil {
+		return fmt.Errorf("start agent run: %w", err)
+	}
+	return nil
+}
+
+func (s *PostgresStore) AppendAgentStep(ctx context.Context, agentRunID string, stepIndex int, messagesJSON, usageJSON []byte) error {
+	stepID := uuid.New().String()
+	_, err := s.pool.Exec(ctx,
+		`INSERT INTO agent_steps (id, agent_run_id, step_index, messages_json, usage_json)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (agent_run_id, step_index) DO UPDATE
+           SET messages_json=EXCLUDED.messages_json, usage_json=EXCLUDED.usage_json`,
+		stepID, agentRunID, stepIndex, messagesJSON, usageJSON,
+	)
+	if err != nil {
+		return fmt.Errorf("append agent step: %w", err)
+	}
+	return nil
+}
+
+func (s *PostgresStore) FinishAgentRun(ctx context.Context, id, status string, stepCount, usedTokens int, usedCostUSD float64) error {
+	_, err := s.pool.Exec(ctx,
+		`UPDATE agent_runs
+         SET status=$2, ended_at=now(), step_count=$3, used_tokens=$4, used_cost_usd=$5
+         WHERE id=$1`,
+		id, status, stepCount, usedTokens, usedCostUSD,
+	)
+	if err != nil {
+		return fmt.Errorf("finish agent run: %w", err)
+	}
+	return nil
+}
+
+func (s *PostgresStore) LoadAgentRun(ctx context.Context, clauseID string) (AgentRun, []AgentStep, bool, error) {
+	var run AgentRun
+	err := s.pool.QueryRow(ctx,
+		`SELECT id, clause_id, COALESCE(run_id,''), status, step_count, used_tokens,
+                used_cost_usd::float8, started_at, ended_at
+         FROM agent_runs
+         WHERE clause_id=$1
+         ORDER BY started_at DESC LIMIT 1`,
+		clauseID,
+	).Scan(&run.ID, &run.ClauseID, &run.RunID, &run.Status, &run.StepCount,
+		&run.UsedTokens, &run.UsedCostUSD, &run.StartedAt, &run.EndedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return AgentRun{}, nil, false, nil
+		}
+		return AgentRun{}, nil, false, fmt.Errorf("load agent run: %w", err)
+	}
+
+	rows, err := s.pool.Query(ctx,
+		`SELECT id, agent_run_id, step_index, messages_json, usage_json, created_at
+         FROM agent_steps WHERE agent_run_id=$1 ORDER BY step_index`,
+		run.ID,
+	)
+	if err != nil {
+		return AgentRun{}, nil, false, fmt.Errorf("load agent steps: %w", err)
+	}
+	defer rows.Close()
+
+	var steps []AgentStep
+	for rows.Next() {
+		var step AgentStep
+		if err := rows.Scan(&step.ID, &step.AgentRunID, &step.StepIndex,
+			&step.Messages, &step.UsageJSON, &step.CreatedAt); err != nil {
+			return AgentRun{}, nil, false, fmt.Errorf("scan agent step: %w", err)
+		}
+		steps = append(steps, step)
+	}
+	if err := rows.Err(); err != nil {
+		return AgentRun{}, nil, false, fmt.Errorf("agent steps rows: %w", err)
+	}
+
+	return run, steps, true, nil
+}
+
+func (s *PostgresStore) GetStoredFinding(ctx context.Context, clauseID string) (domain.ClauseAnalysis, error) {
+	var a domain.ClauseAnalysis
+	var riskLevel pgtype.Text
+	var explanation, ambiguous, recommendations pgtype.Text
+	err := s.pool.QueryRow(ctx,
+		`SELECT id, clause_id, risk_level, explanation, ambiguous_language, recommendations, status
+         FROM clause_analyses WHERE clause_id=$1 ORDER BY id DESC LIMIT 1`,
+		clauseID,
+	).Scan(&a.ID, &a.ClauseID, &riskLevel, &explanation, &ambiguous, &recommendations, &a.Status)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.ClauseAnalysis{}, ErrNotFound
+		}
+		return domain.ClauseAnalysis{}, fmt.Errorf("get stored finding: %w", err)
+	}
+	if riskLevel.Valid {
+		rl := domain.RiskLevel(riskLevel.String)
+		a.RiskLevel = &rl
+	}
+	if explanation.Valid {
+		a.Explanation = explanation.String
+	}
+	if ambiguous.Valid {
+		a.AmbiguousLanguage = ambiguous.String
+	}
+	if recommendations.Valid {
+		a.Recommendations = recommendations.String
+	}
+	return a, nil
+}

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/joho/godotenv"
 
@@ -43,7 +45,8 @@ func main() {
 	}
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level})))
 
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	pool, err := store.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {
@@ -67,6 +70,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  extract <path/to/contract.pdf>   debug: PDF extraction only")
 		fmt.Fprintln(os.Stderr, "  extract-clauses <contract_id>    debug: clause splitting only")
 		fmt.Fprintln(os.Stderr, "  analyze-clause <contract_id> <clause_id>  debug: run agent on one clause")
+		fmt.Fprintln(os.Stderr, "  status <contract_id>             show contract and clause agent_run states")
 		os.Exit(1)
 	}
 
@@ -117,6 +121,16 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "status":
+		if len(os.Args) < 3 {
+			fmt.Fprintln(os.Stderr, "usage: status <contract_id>")
+			os.Exit(1)
+		}
+		if err := runStatus(ctx, s, os.Args[2]); err != nil {
+			slog.Error("status failed", "error", err)
+			os.Exit(1)
+		}
+
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
 		os.Exit(1)
@@ -147,6 +161,46 @@ func runProcess(ctx context.Context, cfg config.Config, client llm.LLM, s store.
 	}
 	slog.Info("clauses analyzed", "contract_id", contractID)
 
+	return nil
+}
+
+func runStatus(ctx context.Context, s store.Store, contractID string) error {
+	contract, err := s.GetContract(ctx, contractID)
+	if err != nil {
+		return fmt.Errorf("get contract: %w", err)
+	}
+	fmt.Printf("Contract: %s  status=%s\n", contract.ID, contract.Status)
+
+	clauses, err := s.GetClauses(ctx, contractID)
+	if err != nil {
+		return fmt.Errorf("get clauses: %w", err)
+	}
+	fmt.Printf("Clauses: %d\n", len(clauses))
+
+	var submitted, running, failed, pending int
+	for _, c := range clauses {
+		run, _, found, err := s.LoadAgentRun(ctx, c.ID)
+		if err != nil {
+			return fmt.Errorf("load agent run for clause %s: %w", c.ID, err)
+		}
+		if !found {
+			pending++
+			fmt.Printf("  clause %s  status=pending\n", c.ID)
+			continue
+		}
+		switch run.Status {
+		case "submitted":
+			submitted++
+		case "running":
+			running++
+		default:
+			failed++
+		}
+		fmt.Printf("  clause %s  status=%s  steps=%d  tokens=%d  cost=$%.4f\n",
+			c.ID, run.Status, run.StepCount, run.UsedTokens, run.UsedCostUSD)
+	}
+	fmt.Printf("\nSummary: submitted=%d running=%d failed=%d pending=%d\n",
+		submitted, running, failed, pending)
 	return nil
 }
 
@@ -181,7 +235,7 @@ func runAnalyzeClause(ctx context.Context, cfg config.Config, client llm.LLM, s 
 		cfg.KeepRecent,
 		client,
 	)
-	a := agent.New(client, reg, defaultMaxSteps, ctxMgr)
+	a := agent.NewWithStore(client, reg, defaultMaxSteps, ctxMgr, nil, s)
 	result, err := a.Run(ctx, agent.AnalyzeClauseTask{
 		ContractID: target.ContractID,
 		ClauseID:   target.ID,

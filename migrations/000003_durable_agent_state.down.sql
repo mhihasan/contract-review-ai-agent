@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS agent_steps;
+DROP TABLE IF EXISTS agent_runs;
+DROP TABLE IF EXISTS runs;
