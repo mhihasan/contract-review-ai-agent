@@ -38,7 +38,7 @@ type Agent struct {
 }
 
 func New(l llm.LLM, tools *tool.Registry, maxSteps int, ctxMgr *ContextManager) *Agent {
-	return &Agent{llm: l, tools: tools, maxSteps: maxSteps, ctxMgr: ctxMgr}
+	return NewWithBudget(l, tools, maxSteps, ctxMgr, nil)
 }
 
 func NewWithBudget(l llm.LLM, tools *tool.Registry, maxSteps int, ctxMgr *ContextManager, budget *Budget) *Agent {

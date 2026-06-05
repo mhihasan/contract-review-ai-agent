@@ -389,4 +389,13 @@ func TestAgent_BudgetExceeded_StopsBeforeNextCall(t *testing.T) {
 	if len(fake.Calls) != 1 {
 		t.Errorf("LLM called %d time(s), want exactly 1 (budget must stop before second call)", len(fake.Calls))
 	}
+	if result.Steps != 1 {
+		t.Errorf("Steps = %d, want 1", result.Steps)
+	}
+	if result.Usage.InputTokens != 600 {
+		t.Errorf("Usage.InputTokens = %d, want 600", result.Usage.InputTokens)
+	}
+	if result.Usage.OutputTokens != 500 {
+		t.Errorf("Usage.OutputTokens = %d, want 500", result.Usage.OutputTokens)
+	}
 }
