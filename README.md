@@ -1,5 +1,85 @@
 # Contract Review AI Agent
 
+An AI-powered pipeline that extracts clauses from a PDF contract, analyzes each for risk, supports human review, and generates a professional markdown summary report.
+
+## Prerequisites
+
+- Go 1.25+
+- PostgreSQL database
+- OpenAI or Anthropic API key
+
+Set these environment variables (or create a `.env` file):
+
+```
+DATABASE_URL=postgres://user:password@localhost:5432/dbname
+LLM_PROVIDER=openai          # or anthropic
+OPENAI_API_KEY=sk-...        # if using openai
+ANTHROPIC_API_KEY=sk-ant-... # if using anthropic
+LLM_MODEL=gpt-4o-mini        # model to use
+```
+
+## Usage
+
+### Full automated pipeline (no human review)
+
+```bash
+go run . process path/to/contract.pdf
+```
+
+Runs the complete pipeline and writes a `summary_<contract_id>.md` file.
+
+### Full pipeline with human review step
+
+```bash
+go run . process path/to/contract.pdf --review
+```
+
+After analysis completes the pipeline pauses. Run the review and resume commands below.
+
+### Step-by-step
+
+#### 1. Review clauses interactively
+
+```bash
+go run . review <contract_id>
+```
+
+For each clause you will be prompted to `approve` or `reject` it, with an optional annotation. Press Enter to skip a clause.
+
+#### 2. Complete review and generate summary
+
+```bash
+go run . resume <contract_id>
+```
+
+Marks the review complete and generates the summary report.
+
+#### 3. Generate (or re-generate) the summary directly
+
+```bash
+go run . summarize <contract_id>
+```
+
+Generates the final summary for a `review_complete` contract. Safe to run multiple times — re-running on a finished contract prints the existing summary without calling the LLM again.
+
+### Debug commands
+
+```bash
+go run . extract <path/to/contract.pdf>          # PDF text extraction only
+go run . extract-clauses <contract_id>           # clause splitting only
+go run . analyze <contract_id>                   # AI analysis across all clauses
+go run . analyze-clause <contract_id> <clause_id> # run agent on a single clause
+go run . status <contract_id>                    # show contract and clause processing state
+```
+
+### Output
+
+A successful run produces:
+- `summary_<contract_id>.md` — a markdown report with four sections: Executive Summary, Key Findings, Risk Breakdown, and Clause-by-Clause Detail
+- The same content printed to stdout
+
+---
+
 ## Data Model
 
 ### Why each table exists
