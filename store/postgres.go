@@ -38,11 +38,16 @@ func NewPostgresStore(pool *pgxpool.Pool) *PostgresStore {
 }
 
 func (s *PostgresStore) CreateContract(ctx context.Context, filename, rawText string) (domain.Contract, error) {
-	row, err := s.q.CreateContract(ctx, db.CreateContractParams{
-		ID:       uuid.New().String(),
-		Filename: filename,
-		RawText:  rawText,
-		Status:   domain.StatusUploaded.String(),
+	return s.CreateContractWithOptions(ctx, filename, rawText, false)
+}
+
+func (s *PostgresStore) CreateContractWithOptions(ctx context.Context, filename, rawText string, requiresReview bool) (domain.Contract, error) {
+	row, err := s.q.CreateContractWithOptions(ctx, db.CreateContractWithOptionsParams{
+		ID:             uuid.New().String(),
+		Filename:       filename,
+		RawText:        rawText,
+		Status:         domain.StatusUploaded.String(),
+		RequiresReview: requiresReview,
 	})
 	if err != nil {
 		return domain.Contract{}, fmt.Errorf("create contract: %w", err)
@@ -232,11 +237,12 @@ func (s *PostgresStore) GetStandardClause(ctx context.Context, clauseType string
 
 func toDomainContract(r db.Contract) domain.Contract {
 	return domain.Contract{
-		ID:        r.ID,
-		Filename:  r.Filename,
-		RawText:   r.RawText,
-		Status:    domain.ContractStatus(r.Status),
-		CreatedAt: r.CreatedAt.Time,
+		ID:             r.ID,
+		Filename:       r.Filename,
+		RawText:        r.RawText,
+		Status:         domain.ContractStatus(r.Status),
+		RequiresReview: r.RequiresReview,
+		CreatedAt:      r.CreatedAt.Time,
 	}
 }
 

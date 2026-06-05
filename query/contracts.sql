@@ -8,3 +8,11 @@ SELECT * FROM contracts WHERE id = $1;
 
 -- name: UpdateContractStatus :exec
 UPDATE contracts SET status = $2 WHERE id = $1;
+
+-- name: UpdateContractText :exec
+UPDATE contracts SET raw_text = $2 WHERE id = $1;
+
+-- name: CreateContractWithOptions :one
+INSERT INTO contracts (id, filename, raw_text, status, requires_review)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING *;

@@ -351,3 +351,32 @@ func TestAgentRunPersistence(t *testing.T) {
 		}
 	})
 }
+
+func TestCreateContractWithOptions(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	got, err := s.CreateContractWithOptions(ctx, "review.pdf", "text", true)
+	if err != nil {
+		t.Fatalf("CreateContractWithOptions: %v", err)
+	}
+	if !got.RequiresReview {
+		t.Error("expected RequiresReview=true")
+	}
+
+	fetched, err := s.GetContract(ctx, got.ID)
+	if err != nil {
+		t.Fatalf("GetContract: %v", err)
+	}
+	if !fetched.RequiresReview {
+		t.Error("expected fetched RequiresReview=true")
+	}
+
+	noReview, err := s.CreateContractWithOptions(ctx, "plain.pdf", "text", false)
+	if err != nil {
+		t.Fatalf("CreateContractWithOptions (false): %v", err)
+	}
+	if noReview.RequiresReview {
+		t.Error("expected RequiresReview=false")
+	}
+}

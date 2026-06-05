@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"time"
 
 	"github.com/mhihasan/contract-review-ai-agent/domain"
@@ -12,8 +13,8 @@ import (
 
 type extractFunc func(ctx context.Context, path string) (string, error)
 
-func RunExtract(ctx context.Context, s store.Store, extract extractFunc, path string) (string, error) {
-	c, err := s.CreateContract(ctx, path, "")
+func RunExtract(ctx context.Context, s store.Store, extract extractFunc, path string, requiresReview bool) (string, error) {
+	c, err := s.CreateContractWithOptions(ctx, filepath.Base(path), "", requiresReview)
 	if err != nil {
 		return "", fmt.Errorf("create contract: %w", err)
 	}

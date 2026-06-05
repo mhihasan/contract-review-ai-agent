@@ -34,6 +34,10 @@ func (m *pipelineMemoryStore) CreateContract(_ context.Context, _, _ string) (do
 	panic("not implemented")
 }
 
+func (m *pipelineMemoryStore) CreateContractWithOptions(_ context.Context, _, _ string, _ bool) (domain.Contract, error) {
+	panic("not implemented")
+}
+
 func (m *pipelineMemoryStore) GetContract(_ context.Context, id string) (domain.Contract, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

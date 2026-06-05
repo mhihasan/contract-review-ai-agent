@@ -8,6 +8,27 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AgentRun struct {
+	ID          string
+	ClauseID    string
+	RunID       pgtype.Text
+	Status      string
+	StepCount   int32
+	UsedTokens  int32
+	UsedCostUsd pgtype.Numeric
+	StartedAt   pgtype.Timestamptz
+	EndedAt     pgtype.Timestamptz
+}
+
+type AgentStep struct {
+	ID           string
+	AgentRunID   string
+	StepIndex    int32
+	MessagesJson []byte
+	UsageJson    []byte
+	CreatedAt    pgtype.Timestamptz
+}
+
 type Clause struct {
 	ID             string
 	ContractID     string
@@ -25,12 +46,20 @@ type ClauseAnalysis struct {
 	Status            string
 }
 
+type ClauseLibrary struct {
+	ID           string
+	ClauseType   string
+	StandardText string
+	Notes        string
+}
+
 type Contract struct {
-	ID        string
-	Filename  string
-	RawText   string
-	Status    string
-	CreatedAt pgtype.Timestamptz
+	ID             string
+	Filename       string
+	RawText        string
+	Status         string
+	CreatedAt      pgtype.Timestamptz
+	RequiresReview bool
 }
 
 type Review struct {
@@ -38,6 +67,15 @@ type Review struct {
 	ClauseID   string
 	Decision   string
 	Annotation pgtype.Text
+}
+
+type Run struct {
+	ID           string
+	ContractID   string
+	StartedAt    pgtype.Timestamptz
+	EndedAt      pgtype.Timestamptz
+	Status       string
+	ReachedStage pgtype.Text
 }
 
 type Summary struct {

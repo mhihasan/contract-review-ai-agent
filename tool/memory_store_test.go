@@ -28,6 +28,10 @@ func (m *MemoryStore) CreateContract(_ context.Context, _, _ string) (domain.Con
 	return domain.Contract{}, fmt.Errorf("not implemented")
 }
 
+func (m *MemoryStore) CreateContractWithOptions(_ context.Context, _, _ string, _ bool) (domain.Contract, error) {
+	return domain.Contract{}, fmt.Errorf("not implemented")
+}
+
 func (m *MemoryStore) GetContract(_ context.Context, id string) (domain.Contract, error) {
 	c, ok := m.contracts[id]
 	if !ok {

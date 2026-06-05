@@ -33,6 +33,7 @@ type AgentStep struct {
 
 type Store interface {
 	CreateContract(ctx context.Context, filename, rawText string) (domain.Contract, error)
+	CreateContractWithOptions(ctx context.Context, filename, rawText string, requiresReview bool) (domain.Contract, error)
 	GetContract(ctx context.Context, id string) (domain.Contract, error)
 	UpdateContractStatus(ctx context.Context, id string, status domain.ContractStatus) error
 	UpdateContractText(ctx context.Context, id, rawText string) error
