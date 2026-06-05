@@ -101,6 +101,7 @@ erDiagram
         text filename
         text raw_text
         text status
+        bool requires_review
         timestamptz created_at
     }
 
@@ -115,17 +116,17 @@ erDiagram
         text id PK
         text clause_id FK
         text risk_level "nullable"
-        text explanation
-        text ambiguous_language
-        text recommendations
-        text status "ok | failed"
+        text explanation "nullable"
+        text ambiguous_language "nullable"
+        text recommendations "nullable"
+        text status "submitted | failed"
     }
 
     reviews {
         text id PK
         text clause_id FK
         text decision "approved | rejected"
-        text annotation
+        text annotation "nullable"
     }
 
     summaries {
@@ -135,10 +136,50 @@ erDiagram
         timestamptz created_at
     }
 
+    runs {
+        text id PK
+        text contract_id FK
+        text status
+        text reached_stage "nullable"
+        timestamptz started_at
+        timestamptz ended_at "nullable"
+    }
+
+    agent_runs {
+        text id PK
+        text clause_id FK
+        text run_id "nullable"
+        text status
+        int step_count
+        int used_tokens
+        numeric used_cost_usd
+        timestamptz started_at
+        timestamptz ended_at "nullable"
+    }
+
+    agent_steps {
+        text id PK
+        text agent_run_id FK
+        int step_index
+        bytes messages_json
+        bytes usage_json
+        timestamptz created_at
+    }
+
+    clause_library {
+        text id PK
+        text clause_type
+        text standard_text
+        text notes
+    }
+
     contracts ||--o{ clauses : "has"
-    clauses ||--o{ clause_analyses : "analyzed by"
-    clauses ||--o{ reviews : "reviewed by"
+    contracts ||--o{ runs : "has"
     contracts ||--o| summaries : "summarized by"
+    clauses ||--o| clause_analyses : "analyzed by"
+    clauses ||--o| reviews : "reviewed by"
+    clauses ||--o{ agent_runs : "processed by"
+    agent_runs ||--o{ agent_steps : "has"
 ```
 
 ### Contract status flow
