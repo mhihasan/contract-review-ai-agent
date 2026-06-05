@@ -74,6 +74,18 @@ Tools the agent can call:
 
 **Tracing.** Every message and tool call is stored in `agent_steps`. Run `trace <clause_id>` to replay the full step trajectory for any clause — what it called, what came back, how many steps to a finding.
 
+### Agentic engineering practices
+
+- **Structured output via tool forcing.** The agent can only finish by calling `submit_finding`. There's no code path where it outputs prose and exits. Risk level is an enum — `high`, `medium`, `low` — validated at call time. If the agent tries to submit without an explanation or recommendations, the call is rejected and it has to try again.
+- **Tool-use loop with bounded steps.** The agent runs a proper tool-calling loop, not a chain of prompts. Each step it decides what it needs, calls a tool, reads the result, and decides what's next. Max steps is capped (default 12) to prevent infinite loops on ambiguous clauses.
+- **Context compaction strategy.** Rather than letting the context grow until it crashes, the agent actively manages it: truncate tool results first, then summarize the middle of the history, then drop it if needed. The system prompt and recent turns are pinned and never evicted.
+- **Pre-call budget checks.** The shared budget is checked before each LLM call, not after. A clause that would exceed the token or cost limit doesn't start — so you never end up in a state where half a clause was analyzed and billed but nothing was saved.
+- **Per-step persistence.** Each step in an agent run is written to the database immediately. This makes runs resumable after any kind of failure — crash, timeout, kill signal. It also means you have a complete audit log of what the agent did and why, not just the final answer.
+- **Idempotent pipeline stages.** Every stage checks whether it's already been done before doing work. Re-running `analyze` skips clauses that already have a saved finding. Re-running `summarize` returns the stored report. Nothing re-bills.
+- **Parallelism with shared rate control.** Clauses run concurrently, but a single `Budget` object (mutex-protected) coordinates across all goroutines. One place tracks spend, one place enforces limits — no per-agent budget that could collectively blow past the cap.
+- **Dry run mode.** The pipeline can print its execution plan — clause count, concurrency, step limit, cost ceiling — without making any API calls or DB writes. Useful for cost estimation before running a large contract.
+- **Provider-agnostic LLM interface.** The agent talks to an `LLM` interface, not a specific provider SDK. Swap between OpenAI and Anthropic via config. Cost estimation is per-provider so budget enforcement stays accurate regardless of which model is in use.
+
 ---
 
 ## Getting started
