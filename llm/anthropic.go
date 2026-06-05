@@ -35,6 +35,9 @@ func (a *Anthropic) Complete(ctx context.Context, req CompletionRequest) (Comple
 	if len(req.Tools) > 0 {
 		params.Tools = toAnthropicTools(req.Tools)
 	}
+	if req.ForceToolName != "" {
+		params.ToolChoice = anthropic.ToolChoiceParamOfTool(req.ForceToolName)
+	}
 
 	raw, err := a.client.Messages.New(ctx, params)
 	if err != nil {

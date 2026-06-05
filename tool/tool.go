@@ -39,6 +39,18 @@ func (r *Registry) Schemas() []llm.ToolSchema {
 	return out
 }
 
+func (r *Registry) SubmitFindingSchema() []llm.ToolSchema {
+	t, ok := r.tools["submit_finding"]
+	if !ok {
+		return r.Schemas()
+	}
+	return []llm.ToolSchema{{
+		Name:        t.Name(),
+		Description: t.Description(),
+		Parameters:  t.Schema(),
+	}}
+}
+
 func (r *Registry) Dispatch(ctx context.Context, call llm.ToolCall) (string, error) {
 	t, ok := r.tools[call.Name]
 	if !ok {

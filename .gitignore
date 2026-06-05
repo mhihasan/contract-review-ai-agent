@@ -3,3 +3,4 @@ contract-review-ai-agent
 bin/
 *.out
 .worktrees/
+summary_*.md

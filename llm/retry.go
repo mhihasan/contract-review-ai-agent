@@ -21,14 +21,17 @@ type PermanentError struct {
 
 func (e *PermanentError) Error() string { return fmt.Sprintf("permanent %d: %s", e.Code, e.Msg) }
 
+const defaultRequestTimeout = 90 * time.Second
+
 type RetryingLLM struct {
-	inner      LLM
-	maxRetries int
-	baseDelay  time.Duration
+	inner          LLM
+	maxRetries     int
+	baseDelay      time.Duration
+	requestTimeout time.Duration
 }
 
 func NewRetryingLLM(inner LLM, maxRetries int, baseDelay time.Duration) *RetryingLLM {
-	return &RetryingLLM{inner: inner, maxRetries: maxRetries, baseDelay: baseDelay}
+	return &RetryingLLM{inner: inner, maxRetries: maxRetries, baseDelay: baseDelay, requestTimeout: defaultRequestTimeout}
 }
 
 func (r *RetryingLLM) Complete(ctx context.Context, req CompletionRequest) (CompletionResponse, error) {
@@ -38,7 +41,13 @@ func (r *RetryingLLM) Complete(ctx context.Context, req CompletionRequest) (Comp
 			return CompletionResponse{}, ctx.Err()
 		}
 
-		resp, err := r.inner.Complete(ctx, req)
+		timeout := r.requestTimeout
+		if req.Timeout > 0 {
+			timeout = req.Timeout
+		}
+		reqCtx, cancel := context.WithTimeout(ctx, timeout)
+		resp, err := r.inner.Complete(reqCtx, req)
+		cancel()
 		if err == nil {
 			return resp, nil
 		}

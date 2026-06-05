@@ -75,6 +75,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  analyze <contract_id>                       run analysis across all clauses")
 		fmt.Fprintln(os.Stderr, "  analyze-clause <contract_id> <clause_id>    debug: run agent on one clause")
 		fmt.Fprintln(os.Stderr, "  status <contract_id>                        show contract and clause agent_run states")
+		fmt.Fprintln(os.Stderr, "  summarize <contract_id>                     generate the final summary report")
 		os.Exit(1)
 	}
 
@@ -108,7 +109,7 @@ func main() {
 			os.Exit(1)
 		}
 		if err := pipeline.RunResume(ctx, s, os.Args[2], func(ctx context.Context, s store.Store, id string) error {
-			return summarizeStub(ctx, s, id)
+			return pipeline.RunSummarize(ctx, s, client, id, cfg.SummaryClauseTokenBudget, cfg.LLMModel, ".", "client", "", "")
 		}); err != nil {
 			slog.Error("resume failed", "error", err)
 			os.Exit(1)
@@ -170,6 +171,16 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "summarize":
+		if len(os.Args) < 3 {
+			fmt.Fprintln(os.Stderr, "usage: summarize <contract_id>")
+			os.Exit(1)
+		}
+		if err := pipeline.RunSummarize(ctx, s, client, os.Args[2], cfg.SummaryClauseTokenBudget, cfg.LLMModel, ".", "client", "", ""); err != nil {
+			slog.Error("summarize failed", "error", err)
+			os.Exit(1)
+		}
+
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
 		os.Exit(1)
@@ -193,10 +204,10 @@ func runProcess(ctx context.Context, cfg config.Config, client llm.LLM, s store.
 	}
 	slog.Info("clauses analyzed", "contract_id", contractID)
 
-	return runPostAnalysis(ctx, s, contractID, requiresReview)
+	return runPostAnalysis(ctx, cfg, client, s, contractID, requiresReview)
 }
 
-func runPostAnalysis(ctx context.Context, s store.Store, contractID string, requiresReview bool) error {
+func runPostAnalysis(ctx context.Context, cfg config.Config, client llm.LLM, s store.Store, contractID string, requiresReview bool) error {
 	contract, err := s.GetContract(ctx, contractID)
 	if err != nil {
 		return fmt.Errorf("get contract: %w", err)
@@ -219,15 +230,10 @@ func runPostAnalysis(ctx context.Context, s store.Store, contractID string, requ
 		return nil
 	}
 
-	return summarizeStub(ctx, s, contractID)
-}
-
-func summarizeStub(ctx context.Context, s store.Store, contractID string) error {
-	if err := s.UpdateContractStatus(ctx, contractID, domain.StatusDone); err != nil {
-		return fmt.Errorf("set done: %w", err)
+	if err := s.UpdateContractStatus(ctx, contractID, domain.StatusReviewComplete); err != nil {
+		return fmt.Errorf("set review_complete: %w", err)
 	}
-	slog.Info("done", "contract_id", contractID)
-	return nil
+	return pipeline.RunSummarize(ctx, s, client, contractID, cfg.SummaryClauseTokenBudget, cfg.LLMModel, ".", "client", "", "")
 }
 
 func runAnalyze(ctx context.Context, cfg config.Config, client llm.LLM, s store.Store, contractID string) error {
@@ -316,6 +322,7 @@ func runAnalyzeClause(ctx context.Context, cfg config.Config, client llm.LLM, s 
 		tool.NewGetContractSection(s, contractID),
 		tool.NewSearchClauseLibrary(s, contractID),
 		tool.NewLookupStandardClause(s, contractID),
+		tool.NewSubmitFinding(nil),
 	)
 
 	ctxMgr := agent.NewContextManager(

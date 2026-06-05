@@ -120,12 +120,17 @@ func (a *Agent) Run(ctx context.Context, task AnalyzeClauseTask) (Result, error)
 			break
 		}
 
-		resp, err := a.llm.Complete(ctx, llm.CompletionRequest{
+		isLastStep := step == a.maxSteps-1
+		req := llm.CompletionRequest{
 			Messages:    msgs,
 			Tools:       a.tools.Schemas(),
 			MaxTokens:   1024,
 			Temperature: 0.2,
-		})
+		}
+		if isLastStep {
+			req.ForceToolName = "submit_finding"
+		}
+		resp, err := a.llm.Complete(ctx, req)
 		if err != nil {
 			return Result{}, fmt.Errorf("llm complete at step %d: %w", step, err)
 		}
@@ -142,11 +147,16 @@ func (a *Agent) Run(ctx context.Context, task AnalyzeClauseTask) (Result, error)
 			ToolCalls: resp.ToolCalls,
 		})
 
+		stepsRemaining := a.maxSteps - step - 1
 		submitted := false
 		if len(resp.ToolCalls) == 0 {
+			content := "Use a tool, or call submit_finding to finish."
+			if isLastStep {
+				content = "You MUST call submit_finding now."
+			}
 			msgs = append(msgs, llm.Message{
 				Role:    llm.RoleUser,
-				Content: "Use a tool, or call submit_finding to finish.",
+				Content: content,
 			})
 		} else {
 			for _, call := range resp.ToolCalls {
@@ -166,6 +176,12 @@ func (a *Agent) Run(ctx context.Context, task AnalyzeClauseTask) (Result, error)
 					result = "tool error: " + err.Error()
 				}
 				msgs = append(msgs, toolResultMessage(call.ID, result))
+			}
+			if stepsRemaining == 1 && !submitted {
+				msgs = append(msgs, llm.Message{
+					Role:    llm.RoleUser,
+					Content: "This is your last tool call. Your next response MUST call submit_finding.",
+				})
 			}
 		}
 

@@ -157,14 +157,14 @@ func TestConfig_BudgetEnvVars_Defaults(t *testing.T) {
 	if cfg.AgentMaxCostUSD != 0.50 {
 		t.Errorf("AgentMaxCostUSD = %v, want 0.50", cfg.AgentMaxCostUSD)
 	}
-	if cfg.RunMaxTokens != 500000 {
-		t.Errorf("RunMaxTokens = %d, want 500000", cfg.RunMaxTokens)
+	if cfg.RunMaxTokens != 2000000 {
+		t.Errorf("RunMaxTokens = %d, want 2000000", cfg.RunMaxTokens)
 	}
 	if cfg.RunMaxCostUSD != 5.00 {
 		t.Errorf("RunMaxCostUSD = %v, want 5.00", cfg.RunMaxCostUSD)
 	}
-	if cfg.RunMaxSteps != 200 {
-		t.Errorf("RunMaxSteps = %d, want 200", cfg.RunMaxSteps)
+	if cfg.RunMaxSteps != 10000 {
+		t.Errorf("RunMaxSteps = %d, want 10000", cfg.RunMaxSteps)
 	}
 }
 
