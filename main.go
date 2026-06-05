@@ -87,6 +87,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  analyze-clause <contract_id> <clause_id>    debug: run agent on one clause")
 		fmt.Fprintln(os.Stderr, "  status <contract_id>                        show contract and clause agent_run states")
 		fmt.Fprintln(os.Stderr, "  summarize <contract_id>                     generate the final summary report")
+		fmt.Fprintln(os.Stderr, "  trace <clause_id>                          render agent step trajectory")
 		fmt.Fprintln(os.Stderr, "  --dry-run  print what the pipeline would do; make no LLM calls, no DB writes")
 		os.Exit(1)
 	}
@@ -215,6 +216,16 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "trace":
+		if len(filteredArgs) < 2 {
+			fmt.Fprintln(os.Stderr, "usage: trace <clause_id>")
+			os.Exit(1)
+		}
+		if err := runTrace(ctx, s, filteredArgs[1]); err != nil {
+			slog.Error("trace failed", "error", err)
+			os.Exit(1)
+		}
+
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", filteredArgs[0])
 		os.Exit(1)
@@ -332,6 +343,18 @@ func runStatus(ctx context.Context, s store.Store, contractID string) error {
 	}
 	fmt.Printf("\nSummary: submitted=%d running=%d failed=%d pending=%d\n",
 		submitted, running, failed, pending)
+	return nil
+}
+
+func runTrace(ctx context.Context, s store.Store, clauseID string) error {
+	run, steps, found, err := s.LoadAgentRun(ctx, clauseID)
+	if err != nil {
+		return fmt.Errorf("load agent run: %w", err)
+	}
+	if !found {
+		return fmt.Errorf("no agent run found for clause %q", clauseID)
+	}
+	pipeline.RenderTrace(os.Stdout, run, steps)
 	return nil
 }
 
