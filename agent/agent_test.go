@@ -9,6 +9,7 @@ import (
 	"github.com/mhihasan/contract-review-ai-agent/agent"
 	"github.com/mhihasan/contract-review-ai-agent/domain"
 	"github.com/mhihasan/contract-review-ai-agent/llm"
+	"github.com/mhihasan/contract-review-ai-agent/store"
 	"github.com/mhihasan/contract-review-ai-agent/tool"
 )
 
@@ -72,6 +73,34 @@ func (m *memoryStore) GetStandardClause(_ context.Context, clauseType string) (d
 		}
 	}
 	return domain.LibraryClause{}, fmt.Errorf("not found")
+}
+
+func (m *memoryStore) StartRun(_ context.Context, _, _ string) error {
+	panic("not implemented")
+}
+
+func (m *memoryStore) FinishRun(_ context.Context, _, _ string) error {
+	panic("not implemented")
+}
+
+func (m *memoryStore) StartAgentRun(_ context.Context, _, _, _ string) error {
+	panic("not implemented")
+}
+
+func (m *memoryStore) AppendAgentStep(_ context.Context, _ string, _ int, _, _ []byte) error {
+	panic("not implemented")
+}
+
+func (m *memoryStore) FinishAgentRun(_ context.Context, _ string, _ string, _, _ int, _ float64) error {
+	panic("not implemented")
+}
+
+func (m *memoryStore) LoadAgentRun(_ context.Context, _ string) (store.AgentRun, []store.AgentStep, bool, error) {
+	return store.AgentRun{}, nil, false, fmt.Errorf("not implemented")
+}
+
+func (m *memoryStore) GetStoredFinding(_ context.Context, _ string) (domain.ClauseAnalysis, error) {
+	return domain.ClauseAnalysis{}, fmt.Errorf("not implemented")
 }
 
 func seedStore(contractID string) *memoryStore {

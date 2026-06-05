@@ -253,3 +253,101 @@ func TestPostgresStore_GetStandardClause(t *testing.T) {
 		t.Error("StandardText must not be empty")
 	}
 }
+
+func TestAgentRunPersistence(t *testing.T) {
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		t.Skip("DATABASE_URL not set")
+	}
+
+	ctx := context.Background()
+	pool, err := store.NewPool(ctx, dbURL)
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	defer pool.Close()
+	s := store.NewPostgresStore(pool)
+
+	contract, err := s.CreateContract(ctx, "test.pdf", "test text")
+	if err != nil {
+		t.Fatalf("create contract: %v", err)
+	}
+	clauseID := "clause-persist-" + contract.ID
+	err = s.SaveClauses(ctx, contract.ID, []domain.Clause{
+		{ID: clauseID, ContractID: contract.ID, SequenceNumber: 1, Text: "test clause"},
+	})
+	if err != nil {
+		t.Fatalf("save clauses: %v", err)
+	}
+
+	runID := "run-persist-" + contract.ID
+	agentRunID := "agentrun-persist-" + contract.ID
+
+	t.Run("StartRun and FinishRun", func(t *testing.T) {
+		if err := s.StartRun(ctx, runID, contract.ID); err != nil {
+			t.Fatalf("start run: %v", err)
+		}
+		if err := s.FinishRun(ctx, runID, "completed"); err != nil {
+			t.Fatalf("finish run: %v", err)
+		}
+	})
+
+	t.Run("StartAgentRun", func(t *testing.T) {
+		if err := s.StartAgentRun(ctx, agentRunID, clauseID, runID); err != nil {
+			t.Fatalf("start agent run: %v", err)
+		}
+	})
+
+	t.Run("AppendAgentStep", func(t *testing.T) {
+		msgs := []byte(`[{"Role":"user","Content":"hello"}]`)
+		usage := []byte(`{"input":10,"output":5}`)
+		if err := s.AppendAgentStep(ctx, agentRunID, 0, msgs, usage); err != nil {
+			t.Fatalf("append step 0: %v", err)
+		}
+		if err := s.AppendAgentStep(ctx, agentRunID, 1, msgs, usage); err != nil {
+			t.Fatalf("append step 1: %v", err)
+		}
+	})
+
+	t.Run("LoadAgentRun running", func(t *testing.T) {
+		run, steps, found, err := s.LoadAgentRun(ctx, clauseID)
+		if err != nil {
+			t.Fatalf("load: %v", err)
+		}
+		if !found {
+			t.Fatal("expected found=true")
+		}
+		if run.Status != "running" {
+			t.Errorf("expected running, got %q", run.Status)
+		}
+		if len(steps) != 2 {
+			t.Errorf("expected 2 steps, got %d", len(steps))
+		}
+	})
+
+	t.Run("FinishAgentRun and LoadAgentRun submitted", func(t *testing.T) {
+		if err := s.FinishAgentRun(ctx, agentRunID, "submitted", 2, 30, 0.001); err != nil {
+			t.Fatalf("finish: %v", err)
+		}
+		run, _, found, err := s.LoadAgentRun(ctx, clauseID)
+		if err != nil {
+			t.Fatalf("load after finish: %v", err)
+		}
+		if !found {
+			t.Fatal("expected found=true after finish")
+		}
+		if run.Status != "submitted" {
+			t.Errorf("expected submitted, got %q", run.Status)
+		}
+	})
+
+	t.Run("LoadAgentRun not found", func(t *testing.T) {
+		_, _, found, err := s.LoadAgentRun(ctx, "nonexistent-clause-xyz")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if found {
+			t.Error("expected found=false for nonexistent clause")
+		}
+	})
+}

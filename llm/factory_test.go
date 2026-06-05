@@ -44,3 +44,20 @@ func TestNew_UnknownProvider(t *testing.T) {
 		t.Fatal("expected error for unknown provider")
 	}
 }
+
+func TestNewReturnsRetryingLLM(t *testing.T) {
+	cfg := config.Config{
+		LLMProvider:    "openai",
+		LLMModel:       "gpt-4o-mini",
+		OpenAIAPIKey:   "test-key",
+		LLMMaxRetries:  3,
+		LLMRetryBaseMS: 500,
+	}
+	client, err := llm.New(cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := client.(*llm.RetryingLLM); !ok {
+		t.Errorf("expected *llm.RetryingLLM, got %T", client)
+	}
+}
