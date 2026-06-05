@@ -4,3 +4,4 @@ bin/
 *.out
 .worktrees/
 summary_*.md
+!testdata/**/summary_*.md
