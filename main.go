@@ -255,6 +255,7 @@ func runAnalyze(ctx context.Context, cfg config.Config, client llm.LLM, s store.
 		ctxMgr,
 		budget,
 		cfg.AnalysisConcurrency,
+		cfg.LLMProvider, cfg.LLMModel,
 	); err != nil {
 		return fmt.Errorf("analyze clauses: %w", err)
 	}
