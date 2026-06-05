@@ -16,6 +16,7 @@ import (
 	"github.com/mhihasan/contract-review-ai-agent/config"
 	"github.com/mhihasan/contract-review-ai-agent/domain"
 	"github.com/mhihasan/contract-review-ai-agent/llm"
+	"github.com/mhihasan/contract-review-ai-agent/logfmt"
 	"github.com/mhihasan/contract-review-ai-agent/pdf"
 	"github.com/mhihasan/contract-review-ai-agent/pipeline"
 	"github.com/mhihasan/contract-review-ai-agent/store"
@@ -44,7 +45,7 @@ func main() {
 	default:
 		level = slog.LevelInfo
 	}
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level})))
+	slog.SetDefault(slog.New(logfmt.NewHandler(os.Stderr, level)))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
