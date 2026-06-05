@@ -34,10 +34,15 @@ type Agent struct {
 	tools    *tool.Registry
 	maxSteps int
 	ctxMgr   *ContextManager
+	budget   *Budget
 }
 
 func New(l llm.LLM, tools *tool.Registry, maxSteps int, ctxMgr *ContextManager) *Agent {
-	return &Agent{llm: l, tools: tools, maxSteps: maxSteps, ctxMgr: ctxMgr}
+	return NewWithBudget(l, tools, maxSteps, ctxMgr, nil)
+}
+
+func NewWithBudget(l llm.LLM, tools *tool.Registry, maxSteps int, ctxMgr *ContextManager, budget *Budget) *Agent {
+	return &Agent{llm: l, tools: tools, maxSteps: maxSteps, ctxMgr: ctxMgr, budget: budget}
 }
 
 func (a *Agent) Run(ctx context.Context, task AnalyzeClauseTask) (Result, error) {
@@ -57,6 +62,10 @@ func (a *Agent) Run(ctx context.Context, task AnalyzeClauseTask) (Result, error)
 			}
 		}
 
+		if a.budget != nil && a.budget.Exceeded() {
+			return Result{Steps: step, Stop: "budget", Usage: usage}, nil
+		}
+
 		resp, err := a.llm.Complete(ctx, llm.CompletionRequest{
 			Messages:    msgs,
 			Tools:       a.tools.Schemas(),
@@ -68,6 +77,10 @@ func (a *Agent) Run(ctx context.Context, task AnalyzeClauseTask) (Result, error)
 		}
 		usage.InputTokens += resp.InputTokens
 		usage.OutputTokens += resp.OutputTokens
+
+		if a.budget != nil {
+			a.budget.Record(resp.Provider, resp.Model, resp.InputTokens, resp.OutputTokens)
+		}
 
 		msgs = append(msgs, llm.Message{
 			Role:      llm.RoleAssistant,

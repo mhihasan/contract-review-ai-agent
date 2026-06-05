@@ -343,3 +343,59 @@ func TestAgent_Cancellation_StopsPromptly(t *testing.T) {
 		t.Error("expected non-nil error when context is cancelled")
 	}
 }
+
+func TestAgent_BudgetExceeded_StopsBeforeNextCall(t *testing.T) {
+	contractID := "contract-budget"
+	ms := seedStore(contractID)
+	reg := buildRegistry(ms, contractID)
+
+	// Each scripted response reports 600 tokens in + 500 tokens out = 1100 tokens.
+	// Budget cap is 1000 tokens, so the second call should never happen.
+	script := []llm.CompletionResponse{
+		{
+			InputTokens:  600,
+			OutputTokens: 500,
+			Provider:     "openai",
+			Model:        "gpt-4o-mini",
+			ToolCalls: []llm.ToolCall{
+				{ID: "call-1", Name: "get_contract_section", Args: json.RawMessage(`{"reference":"Section 7.2"}`)},
+			},
+		},
+		{
+			InputTokens:  600,
+			OutputTokens: 500,
+			Provider:     "openai",
+			Model:        "gpt-4o-mini",
+			ToolCalls:    []llm.ToolCall{submitFindingCall("call-2")},
+		},
+	}
+
+	fake := &llm.Fake{Script: script}
+	budget := agent.NewBudget(1000, 0, 0)
+	a := agent.NewWithBudget(fake, reg, 10, nil, budget)
+
+	result, err := a.Run(context.Background(), agent.AnalyzeClauseTask{
+		ContractID: contractID,
+		ClauseID:   "cl-2",
+		ClauseText: "Section 7.2: Liability clause.",
+	})
+
+	if err != nil {
+		t.Fatalf("Run returned unexpected error: %v", err)
+	}
+	if result.Stop != "budget" {
+		t.Errorf("Stop = %q, want %q", result.Stop, "budget")
+	}
+	if len(fake.Calls) != 1 {
+		t.Errorf("LLM called %d time(s), want exactly 1 (budget must stop before second call)", len(fake.Calls))
+	}
+	if result.Steps != 1 {
+		t.Errorf("Steps = %d, want 1", result.Steps)
+	}
+	if result.Usage.InputTokens != 600 {
+		t.Errorf("Usage.InputTokens = %d, want 600", result.Usage.InputTokens)
+	}
+	if result.Usage.OutputTokens != 500 {
+		t.Errorf("Usage.OutputTokens = %d, want 500", result.Usage.OutputTokens)
+	}
+}
