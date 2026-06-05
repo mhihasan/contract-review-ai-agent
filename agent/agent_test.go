@@ -428,3 +428,111 @@ func TestAgent_BudgetExceeded_StopsBeforeNextCall(t *testing.T) {
 		t.Errorf("Usage.OutputTokens = %d, want 500", result.Usage.OutputTokens)
 	}
 }
+
+func TestAgent_ResumeFromPersistedSteps(t *testing.T) {
+	msgs := []llm.Message{{Role: llm.RoleUser, Content: "hello"}}
+	msgsJSON, _ := json.Marshal(msgs)
+
+	fakeStore := &fakeAgentStore{
+		run: store.AgentRun{
+			ID:       "ar-1",
+			ClauseID: "c-1",
+			Status:   "running",
+		},
+		steps: []store.AgentStep{
+			{ID: "s-1", AgentRunID: "ar-1", StepIndex: 0, Messages: msgsJSON},
+		},
+	}
+
+	submitResp := llm.CompletionResponse{
+		ToolCalls: []llm.ToolCall{{
+			ID:   "tc-1",
+			Name: "submit_finding",
+			Args: json.RawMessage(`{"risk_level":"low","explanation":"ok","recommendations":"none"}`),
+		}},
+	}
+	fake := &llm.Fake{Script: []llm.CompletionResponse{submitResp}}
+	reg := tool.NewRegistry()
+	a := agent.NewWithStore(fake, reg, 10, nil, nil, fakeStore)
+
+	result, err := a.Run(context.Background(), agent.AnalyzeClauseTask{
+		ContractID: "contract-1",
+		ClauseID:   "c-1",
+		ClauseText: "test clause",
+	})
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if result.Stop != "submitted" {
+		t.Errorf("expected submitted, got %q", result.Stop)
+	}
+	if result.Steps != 1 {
+		t.Errorf("expected 1 step (resumed from step 1), got %d", result.Steps)
+	}
+}
+
+func TestAgent_NoOpOnSubmittedRun(t *testing.T) {
+	fakeStore := &fakeAgentStore{
+		run: store.AgentRun{
+			ID:       "ar-2",
+			ClauseID: "c-2",
+			Status:   "submitted",
+		},
+		storedFinding: &domain.ClauseAnalysis{
+			ClauseID:        "c-2",
+			Explanation:     "stored",
+			Recommendations: "stored recs",
+		},
+	}
+
+	fake := &llm.Fake{}
+	reg := tool.NewRegistry()
+	a := agent.NewWithStore(fake, reg, 10, nil, nil, fakeStore)
+
+	result, err := a.Run(context.Background(), agent.AnalyzeClauseTask{
+		ContractID: "contract-1",
+		ClauseID:   "c-2",
+		ClauseText: "test clause",
+	})
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if result.Stop != "submitted" {
+		t.Errorf("expected submitted (no-op), got %q", result.Stop)
+	}
+	if len(fake.Calls) != 0 {
+		t.Errorf("expected 0 LLM calls (no-op), got %d", len(fake.Calls))
+	}
+}
+
+type fakeAgentStore struct {
+	run           store.AgentRun
+	steps         []store.AgentStep
+	storedFinding *domain.ClauseAnalysis
+	appendedSteps []store.AgentStep
+}
+
+func (f *fakeAgentStore) LoadAgentRun(_ context.Context, clauseID string) (store.AgentRun, []store.AgentStep, bool, error) {
+	if f.run.ClauseID == clauseID {
+		return f.run, f.steps, true, nil
+	}
+	return store.AgentRun{}, nil, false, nil
+}
+func (f *fakeAgentStore) StartAgentRun(_ context.Context, id, clauseID, runID string) error {
+	f.run = store.AgentRun{ID: id, ClauseID: clauseID, RunID: runID, Status: "running"}
+	return nil
+}
+func (f *fakeAgentStore) AppendAgentStep(_ context.Context, agentRunID string, stepIndex int, msgs, _ []byte) error {
+	f.appendedSteps = append(f.appendedSteps, store.AgentStep{AgentRunID: agentRunID, StepIndex: stepIndex, Messages: msgs})
+	return nil
+}
+func (f *fakeAgentStore) FinishAgentRun(_ context.Context, _, status string, _, _ int, _ float64) error {
+	f.run.Status = status
+	return nil
+}
+func (f *fakeAgentStore) GetStoredFinding(_ context.Context, clauseID string) (domain.ClauseAnalysis, error) {
+	if f.storedFinding != nil && f.storedFinding.ClauseID == clauseID {
+		return *f.storedFinding, nil
+	}
+	return domain.ClauseAnalysis{}, store.ErrNotFound
+}
