@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -41,8 +42,9 @@ func extractClausesFromLLM(ctx context.Context, client llm.LLM, contractText str
 			Messages: []llm.Message{
 				{Role: llm.RoleUser, Content: prompt.Render()},
 			},
-			MaxTokens:   2048,
+			MaxTokens:   8192,
 			Temperature: 0.2,
+			Timeout:     5 * time.Minute,
 		})
 		if err != nil {
 			return nil, err
