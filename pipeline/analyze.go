@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/mhihasan/contract-review-ai-agent/agent"
+	"github.com/mhihasan/contract-review-ai-agent/cost"
 	"github.com/mhihasan/contract-review-ai-agent/domain"
 	"github.com/mhihasan/contract-review-ai-agent/llm"
 	"github.com/mhihasan/contract-review-ai-agent/store"
@@ -24,6 +27,7 @@ func AnalyzeClauses(
 	ctxMgr *agent.ContextManager,
 	budget *agent.Budget,
 	concurrency int,
+	provider, model string,
 ) error {
 	contract, err := s.GetContract(ctx, contractID)
 	if err != nil {
@@ -50,9 +54,24 @@ func AnalyzeClauses(
 	if err != nil {
 		return fmt.Errorf("filter clauses needing analysis: %w", err)
 	}
+
+	slog.Debug("analyzing contract", "contract_id", contractID,
+		"total_clauses", len(clauses), "need_analysis", len(toAnalyze))
+
 	if concurrency < 1 {
 		concurrency = 1
 	}
+
+	var (
+		mu          sync.Mutex
+		totalTokens int
+		totalCost   float64
+		okCount     int
+		failedCount int
+		dispatched  int
+	)
+
+	start := time.Now()
 
 	g, gCtx := errgroup.WithContext(ctx)
 	g.SetLimit(concurrency)
@@ -60,6 +79,13 @@ func AnalyzeClauses(
 	for _, clause := range toAnalyze {
 		clause := clause
 		g.Go(func() error {
+			mu.Lock()
+			dispatched++
+			idx := dispatched
+			mu.Unlock()
+
+			slog.Debug(fmt.Sprintf("[%d/%d] clause %s — starting agent", idx, len(toAnalyze), clause.ID))
+
 			reg := tool.NewRegistry(
 				tool.NewGetDefinition(s, contractID),
 				tool.NewGetContractSection(s, contractID),
@@ -79,18 +105,40 @@ func AnalyzeClauses(
 				if err := s.SaveAnalysis(ctx, failedAnalysis(clause.ID, runErr.Error())); err != nil {
 					slog.Error("failed to save failed analysis", "clause_id", clause.ID, "err", err)
 				}
+				mu.Lock()
+				failedCount++
+				mu.Unlock()
 				return nil
 			}
 
-			slog.Info("clause analysed", "clause_id", clause.ID, "stop", result.Stop, "steps", result.Steps)
+			clauseTokens := result.Usage.InputTokens + result.Usage.OutputTokens
+			clauseCost := cost.Estimate(provider, model, result.Usage.InputTokens, result.Usage.OutputTokens)
 
 			if result.Stop != "submitted" {
 				slog.Warn("clause not submitted", "clause_id", clause.ID, "stop", result.Stop, "steps", result.Steps)
 				if err := s.SaveAnalysis(ctx, failedAnalysis(clause.ID, result.Stop)); err != nil {
 					slog.Error("failed to save failed analysis", "clause_id", clause.ID, "err", err)
 				}
+				mu.Lock()
+				totalTokens += clauseTokens
+				totalCost += clauseCost
+				failedCount++
+				mu.Unlock()
 				return nil
 			}
+
+			slog.Info(fmt.Sprintf("[%d/%d] clause %s done", idx, len(toAnalyze), clause.ID),
+				"stop", result.Stop,
+				"steps", result.Steps,
+				"tokens", clauseTokens,
+				"est_cost_usd", fmt.Sprintf("$%.6f", clauseCost),
+			)
+
+			mu.Lock()
+			totalTokens += clauseTokens
+			totalCost += clauseCost
+			okCount++
+			mu.Unlock()
 
 			finding := result.Finding
 			finding.ID = uuid.New().String()
@@ -104,6 +152,16 @@ func AnalyzeClauses(
 	}
 
 	_ = g.Wait()
+
+	slog.Info("run complete",
+		"contract_id", contractID,
+		"clauses", len(toAnalyze),
+		"ok", okCount,
+		"failed", failedCount,
+		"total_tokens", totalTokens,
+		"est_cost_usd", fmt.Sprintf("$%.4f", totalCost),
+		"duration_s", fmt.Sprintf("%.1f", time.Since(start).Seconds()),
+	)
 
 	if err := s.UpdateContractStatus(ctx, contractID, domain.StatusAnalyzed); err != nil {
 		return fmt.Errorf("update status to analyzed: %w", err)

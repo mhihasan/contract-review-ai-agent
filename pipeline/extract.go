@@ -14,6 +14,10 @@ import (
 type extractFunc func(ctx context.Context, path string) (string, error)
 
 func RunExtract(ctx context.Context, s store.Store, extract extractFunc, path string, requiresReview bool) (string, error) {
+	slog.Debug("starting extract", "path", path)
+	start := time.Now()
+	defer func() { slog.Debug("extract done", "duration_ms", time.Since(start).Milliseconds()) }()
+
 	c, err := s.CreateContractWithOptions(ctx, filepath.Base(path), "", requiresReview)
 	if err != nil {
 		return "", fmt.Errorf("create contract: %w", err)

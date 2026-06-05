@@ -1,15 +1,19 @@
 package pipeline
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 
 	"github.com/mhihasan/contract-review-ai-agent/agent"
 	"github.com/mhihasan/contract-review-ai-agent/domain"
 	"github.com/mhihasan/contract-review-ai-agent/llm"
+	"github.com/mhihasan/contract-review-ai-agent/logfmt"
 	"github.com/mhihasan/contract-review-ai-agent/store"
 )
 
@@ -215,6 +219,7 @@ func TestAnalyzeClauses_ConcurrentIsolation(t *testing.T) {
 		nil,
 		agent.NewBudget(1_000_000, 10, 1_000),
 		3,
+		"openai", "gpt-4o-mini",
 	)
 	if err != nil {
 		t.Fatalf("AnalyzeClauses: %v", err)
@@ -274,6 +279,7 @@ func TestAnalyzeClauses_NoClauses_NoError(t *testing.T) {
 		nil,
 		agent.NewBudget(1_000_000, 10, 1_000),
 		2,
+		"openai", "gpt-4o-mini",
 	)
 	if err != nil {
 		t.Fatalf("AnalyzeClauses with no clauses: %v", err)
@@ -281,6 +287,42 @@ func TestAnalyzeClauses_NoClauses_NoError(t *testing.T) {
 
 	if len(ms.analyses) != 0 {
 		t.Errorf("expected 0 analyses, got %d", len(ms.analyses))
+	}
+}
+
+func TestAnalyzeClauses_logsClauseProgress(t *testing.T) {
+	var buf bytes.Buffer
+	orig := slog.Default()
+	t.Cleanup(func() { slog.SetDefault(orig) })
+	slog.SetDefault(slog.New(logfmt.NewHandler(&buf, slog.LevelDebug)))
+
+	ms := newPipelineStore()
+	contractID := "log-test-contract"
+	ms.contracts[contractID] = domain.Contract{ID: contractID, Status: domain.StatusClausesExtracted}
+	ms.statuses[contractID] = domain.StatusClausesExtracted
+	ms.clauses[contractID] = []domain.Clause{
+		{ID: "c-001", ContractID: contractID, SequenceNumber: 1, Text: "Clause one."},
+	}
+
+	fakeLLM := &llm.Fake{
+		Script: []llm.CompletionResponse{
+			submitFindingResponse("call-log-1"),
+		},
+	}
+	ctxMgr := agent.NewContextManager("gpt-4o-mini", 100000, 0.8, 4, fakeLLM)
+	budget := agent.NewBudget(0, 0, 0)
+
+	_ = AnalyzeClauses(
+		context.Background(), fakeLLM, ms, contractID,
+		3, ctxMgr, budget, 1, "openai", "gpt-4o-mini",
+	)
+
+	out := buf.String()
+	if !strings.Contains(out, "c-001") {
+		t.Fatalf("expected clause id in log output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "run complete") {
+		t.Fatalf("expected 'run complete' in log output, got:\n%s", out)
 	}
 }
 
