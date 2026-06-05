@@ -1,100 +1,108 @@
-# Contract Review AI Agent
+# Contract Review
 
-An AI-powered pipeline that extracts clauses from a PDF contract, analyzes each for risk, supports human review, and generates a professional markdown summary report.
+A CLI tool that reads a PDF contract, splits it into clauses, scores each one for risk, and produces a structured markdown report. Optionally pauses for a human review step before generating the final output.
 
-## Prerequisites
+## Pipeline
+
+```
+PDF → extract text → split clauses → analyze each clause → [human review] → summary report
+```
+
+Each clause gets a risk level, an explanation of any concerns, and concrete recommendations. The final report has five sections: Executive Summary, Signing Recommendation, Priority Issues, Risk Breakdown, and Clause-by-Clause Detail.
+
+Output is written to `summary_<contract_id>.md` and printed to stdout.
+
+---
+
+## Getting started
+
+### Prerequisites
 
 - Go 1.25+
-- PostgreSQL database
+- PostgreSQL
 - OpenAI or Anthropic API key
 
-Set these environment variables (or create a `.env` file):
+### Environment
+
+Create a `.env` file (or export directly):
 
 ```
 DATABASE_URL=postgres://user:password@localhost:5432/dbname
 LLM_PROVIDER=openai          # or anthropic
-OPENAI_API_KEY=sk-...        # if using openai
-ANTHROPIC_API_KEY=sk-ant-... # if using anthropic
-LLM_MODEL=gpt-4o-mini        # model to use
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+LLM_MODEL=gpt-4o-mini
 ```
+
+---
 
 ## Usage
 
-### Full automated pipeline (no human review)
+### Full pipeline
 
 ```bash
 go run . process path/to/contract.pdf
 ```
 
-Runs the complete pipeline and writes a `summary_<contract_id>.md` file.
+Runs end-to-end and writes `summary_<contract_id>.md`.
 
-### Full pipeline with human review step
+### With human review
 
 ```bash
 go run . process path/to/contract.pdf --review
 ```
 
-After analysis completes the pipeline pauses. Run the review and resume commands below.
-
-### Step-by-step
-
-#### 1. Review clauses interactively
+Pauses after analysis. For each clause you'll be prompted to `approve` or `reject` it with an optional annotation. Press Enter to skip.
 
 ```bash
-go run . review <contract_id>
+go run . review <contract_id>   # step through clauses interactively
+go run . resume <contract_id>   # mark review done and generate the summary
 ```
 
-For each clause you will be prompted to `approve` or `reject` it, with an optional annotation. Press Enter to skip a clause.
-
-#### 2. Complete review and generate summary
-
-```bash
-go run . resume <contract_id>
-```
-
-Marks the review complete and generates the summary report.
-
-#### 3. Generate (or re-generate) the summary directly
+### Regenerate the summary
 
 ```bash
 go run . summarize <contract_id>
 ```
 
-Generates the final summary for a `review_complete` contract. Safe to run multiple times — re-running on a finished contract prints the existing summary without calling the LLM again.
+Idempotent — returns the existing summary without re-running analysis if one already exists.
 
-### Debug commands
+### Dry run
 
 ```bash
-go run . extract <path/to/contract.pdf>          # PDF text extraction only
-go run . extract-clauses <contract_id>           # clause splitting only
-go run . analyze <contract_id>                   # AI analysis across all clauses
-go run . analyze-clause <contract_id> <clause_id> # run agent on a single clause
-go run . status <contract_id>                    # show contract and clause processing state
+go run . analyze <contract_id> --dry-run
 ```
 
-### Output
-
-A successful run produces:
-- `summary_<contract_id>.md` — a markdown report with five sections: Executive Summary, Signing Recommendation, Priority Issues, Risk Breakdown, and Clause-by-Clause Detail
-- The same content printed to stdout
+Prints the execution plan (clause count, concurrency, cost estimate). No API calls, no DB writes.
 
 ---
 
-## Data Model
+## Other commands
 
-### Why each table exists
+| Command | Purpose |
+|---|---|
+| `extract <path>` | PDF text extraction only |
+| `extract-clauses <contract_id>` | Clause splitting only |
+| `analyze <contract_id>` | Analyze all clauses |
+| `analyze-clause <contract_id> <clause_id>` | Analyze a single clause |
+| `status <contract_id>` | Show contract and per-clause state |
+| `trace <clause_id>` | Print the step-by-step execution trace for a clause |
+
+---
+
+## Data model
 
 | Table | Purpose |
 |---|---|
-| `contracts` | The uploaded document. Tracks the raw text and processing status as it moves through the pipeline. |
-| `clauses` | Individual clauses extracted from a contract. A contract is broken into clauses so each can be analyzed independently. |
-| `clause_analyses` | The AI's finding for a single clause — risk level, explanation, and recommendations. One analysis per clause. |
-| `reviews` | A human reviewer's decision on a clause (approved / rejected) with an optional annotation. |
-| `summaries` | A single generated summary for the whole contract. One per contract. |
+| `contracts` | The uploaded document and its processing status. |
+| `clauses` | Individual clauses extracted from the contract. |
+| `clause_analyses` | Risk findings per clause — risk level, explanation, recommendations. |
+| `reviews` | Reviewer decisions (approved / rejected) with optional annotations. |
+| `summaries` | The final report, one per contract. |
 
-### Entity Relationship Diagram
+### Entity relationships
 
-**Core pipeline tables**
+**Core pipeline**
 
 ```mermaid
 erDiagram
@@ -144,7 +152,7 @@ erDiagram
     clauses ||--o| reviews : "reviewed by"
 ```
 
-**Agent execution tables**
+**Agent execution**
 
 ```mermaid
 erDiagram
@@ -209,14 +217,14 @@ uploaded → extracting → extracted → analyzing_clauses → clauses_extracte
 
 | Status | Meaning |
 |---|---|
-| `uploaded` | File received and stored; processing not yet started. |
-| `extracting` | Raw text is being extracted from the document. |
-| `extracted` | Raw text extraction complete; ready for clause splitting. |
-| `analyzing_clauses` | Contract text is being split into individual clauses. |
-| `clauses_extracted` | Clauses saved to the database; ready for AI analysis. |
-| `analyzing` | AI is analyzing each clause for risk and ambiguity. |
-| `analyzed` | All clause analyses saved; ready for human review. |
-| `review_pending` | Waiting for a human reviewer to approve or reject clauses. |
+| `uploaded` | File received; processing not yet started. |
+| `extracting` | Raw text being extracted from the PDF. |
+| `extracted` | Extraction complete; ready for clause splitting. |
+| `analyzing_clauses` | Contract text being split into individual clauses. |
+| `clauses_extracted` | Clauses saved; ready for analysis. |
+| `analyzing` | Analyzing each clause for risk and ambiguity. |
+| `analyzed` | All analyses saved; ready for human review. |
+| `review_pending` | Waiting for a human reviewer. |
 | `review_complete` | All clauses reviewed; ready for summary generation. |
-| `summarizing` | Summary of the full contract is being generated. |
+| `summarizing` | Summary being generated. |
 | `done` | Pipeline complete; summary available. |
