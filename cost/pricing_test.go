@@ -23,6 +23,8 @@ func TestEstimate_KnownModels(t *testing.T) {
 		{"anthropic", "claude-sonnet-4-6", 0, 1_000_000, 15.00},
 		{"anthropic", "claude-haiku-4-5-20251001", 1_000_000, 0, 0.80},
 		{"anthropic", "claude-haiku-4-5-20251001", 0, 1_000_000, 4.00},
+		{"anthropic", "claude-opus-4-8", 1_000_000, 0, 15.00},
+		{"anthropic", "claude-opus-4-8", 0, 1_000_000, 75.00},
 	}
 
 	for _, tt := range tests {
