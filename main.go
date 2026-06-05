@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"log/slog"
 	"os"
@@ -66,23 +67,50 @@ func main() {
 	if len(os.Args) < 2 {
 		fmt.Fprintln(os.Stderr, "usage: contract-review-ai-agent <command> [args]")
 		fmt.Fprintln(os.Stderr, "commands:")
-		fmt.Fprintln(os.Stderr, "  process <path/to/contract.pdf>   run the full pipeline")
-		fmt.Fprintln(os.Stderr, "  extract <path/to/contract.pdf>   debug: PDF extraction only")
-		fmt.Fprintln(os.Stderr, "  extract-clauses <contract_id>    debug: clause splitting only")
-		fmt.Fprintln(os.Stderr, "  analyze <contract_id>            run analysis across all clauses")
-		fmt.Fprintln(os.Stderr, "  analyze-clause <contract_id> <clause_id>  debug: run agent on one clause")
-		fmt.Fprintln(os.Stderr, "  status <contract_id>             show contract and clause agent_run states")
+		fmt.Fprintln(os.Stderr, "  process <path/to/contract.pdf> [--review]  run the full pipeline")
+		fmt.Fprintln(os.Stderr, "  review <contract_id>                        review clauses interactively")
+		fmt.Fprintln(os.Stderr, "  resume <contract_id>                        complete review and advance")
+		fmt.Fprintln(os.Stderr, "  extract <path/to/contract.pdf>              debug: PDF extraction only")
+		fmt.Fprintln(os.Stderr, "  extract-clauses <contract_id>               debug: clause splitting only")
+		fmt.Fprintln(os.Stderr, "  analyze <contract_id>                       run analysis across all clauses")
+		fmt.Fprintln(os.Stderr, "  analyze-clause <contract_id> <clause_id>    debug: run agent on one clause")
+		fmt.Fprintln(os.Stderr, "  status <contract_id>                        show contract and clause agent_run states")
 		os.Exit(1)
 	}
 
 	switch os.Args[1] {
 	case "process":
-		if len(os.Args) < 3 {
-			fmt.Fprintln(os.Stderr, "usage: process <path/to/contract.pdf>")
+		fs := flag.NewFlagSet("process", flag.ExitOnError)
+		requiresReview := fs.Bool("review", false, "pause for human review after analysis")
+		_ = fs.Parse(os.Args[2:])
+		if len(fs.Args()) < 1 {
+			fmt.Fprintln(os.Stderr, "usage: process <path/to/contract.pdf> [--review]")
 			os.Exit(1)
 		}
-		if err := runProcess(ctx, cfg, client, s, os.Args[2]); err != nil {
+		if err := runProcess(ctx, cfg, client, s, fs.Args()[0], *requiresReview); err != nil {
 			slog.Error("process failed", "error", err)
+			os.Exit(1)
+		}
+
+	case "review":
+		if len(os.Args) < 3 {
+			fmt.Fprintln(os.Stderr, "usage: review <contract_id>")
+			os.Exit(1)
+		}
+		if err := pipeline.RunReview(ctx, s, os.Args[2], os.Stdin); err != nil {
+			slog.Error("review failed", "error", err)
+			os.Exit(1)
+		}
+
+	case "resume":
+		if len(os.Args) < 3 {
+			fmt.Fprintln(os.Stderr, "usage: resume <contract_id>")
+			os.Exit(1)
+		}
+		if err := pipeline.RunResume(ctx, s, os.Args[2], func(ctx context.Context, s store.Store, id string) error {
+			return summarizeStub(ctx, s, id)
+		}); err != nil {
+			slog.Error("resume failed", "error", err)
 			os.Exit(1)
 		}
 
@@ -148,7 +176,7 @@ func main() {
 	}
 }
 
-func runProcess(ctx context.Context, cfg config.Config, client llm.LLM, s store.Store, pdfPath string) error {
+func runProcess(ctx context.Context, cfg config.Config, client llm.LLM, s store.Store, pdfPath string, requiresReview bool) error {
 	contractID, err := pipeline.RunExtract(ctx, s, pdf.ExtractText, pdfPath)
 	if err != nil {
 		return fmt.Errorf("extract: %w", err)
@@ -165,6 +193,40 @@ func runProcess(ctx context.Context, cfg config.Config, client llm.LLM, s store.
 	}
 	slog.Info("clauses analyzed", "contract_id", contractID)
 
+	return runPostAnalysis(ctx, s, contractID, requiresReview)
+}
+
+func runPostAnalysis(ctx context.Context, s store.Store, contractID string, requiresReview bool) error {
+	contract, err := s.GetContract(ctx, contractID)
+	if err != nil {
+		return fmt.Errorf("get contract: %w", err)
+	}
+
+	if contract.Status == domain.StatusReviewPending {
+		slog.Info("review in progress — run: go run . review <id>", "contract_id", contractID)
+		return nil
+	}
+	if contract.Status == domain.StatusReviewComplete || contract.Status == domain.StatusDone {
+		slog.Info("already complete", "contract_id", contractID, "status", contract.Status)
+		return nil
+	}
+
+	if requiresReview {
+		if err := s.UpdateContractStatus(ctx, contractID, domain.StatusReviewPending); err != nil {
+			return fmt.Errorf("set review_pending: %w", err)
+		}
+		slog.Info("review required — run: go run . review <id>", "contract_id", contractID)
+		return nil
+	}
+
+	return summarizeStub(ctx, s, contractID)
+}
+
+func summarizeStub(ctx context.Context, s store.Store, contractID string) error {
+	if err := s.UpdateContractStatus(ctx, contractID, domain.StatusDone); err != nil {
+		return fmt.Errorf("set done: %w", err)
+	}
+	slog.Info("done", "contract_id", contractID)
 	return nil
 }
 
