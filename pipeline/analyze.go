@@ -65,6 +65,7 @@ func AnalyzeClauses(
 				tool.NewGetContractSection(s, contractID),
 				tool.NewSearchClauseLibrary(s, contractID),
 				tool.NewLookupStandardClause(s, contractID),
+				tool.NewSubmitFinding(nil),
 			)
 
 			a := agent.NewWithBudget(client, reg, maxSteps, ctxMgr, budget)
