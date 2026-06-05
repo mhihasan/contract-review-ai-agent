@@ -99,7 +99,7 @@ func TestSummarizationPrompt_EmptyAnnotationOmitted(t *testing.T) {
 
 	out := p.Render()
 
-	if strings.Contains(out, "Annotation:") {
+	if strings.Contains(out, "Human note:") {
 		t.Error("empty annotation should not appear in rendered prompt")
 	}
 }
