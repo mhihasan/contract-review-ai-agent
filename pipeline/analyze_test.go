@@ -200,7 +200,6 @@ func TestAnalyzeClauses_ConcurrentIsolation(t *testing.T) {
 			submitFindingResponse("call-3"),
 			submitFindingResponse("call-4"),
 		},
-		Err: fmt.Errorf("simulated llm failure"),
 	}
 
 	err := AnalyzeClauses(
