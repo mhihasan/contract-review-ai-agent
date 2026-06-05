@@ -3,9 +3,11 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	"github.com/mhihasan/contract-review-ai-agent/domain"
 	"github.com/mhihasan/contract-review-ai-agent/llm"
@@ -15,6 +17,10 @@ import (
 )
 
 func RunSummarize(ctx context.Context, s store.Store, client llm.LLM, contractID string, clauseTokenBudget int, model string, outputDir string, reviewingParty string, governingLaw string, contractType string) error {
+	slog.Debug("starting summarize", "contract_id", contractID)
+	start := time.Now()
+	defer func() { slog.Debug("summarize done", "duration_ms", time.Since(start).Milliseconds()) }()
+
 	contract, err := s.GetContract(ctx, contractID)
 	if err != nil {
 		return fmt.Errorf("get contract: %w", err)

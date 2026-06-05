@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -58,6 +59,10 @@ func extractClausesFromLLM(ctx context.Context, client llm.LLM, contractText str
 }
 
 func ExtractClauses(ctx context.Context, client llm.LLM, s store.Store, contractID string) error {
+	slog.Debug("starting clause split", "contract_id", contractID)
+	start := time.Now()
+	defer func() { slog.Debug("clause split done", "duration_ms", time.Since(start).Milliseconds()) }()
+
 	contract, err := s.GetContract(ctx, contractID)
 	if err != nil {
 		return fmt.Errorf("get contract: %w", err)
