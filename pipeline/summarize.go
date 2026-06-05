@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 
 	"github.com/mhihasan/contract-review-ai-agent/domain"
@@ -13,7 +14,7 @@ import (
 	"github.com/mhihasan/contract-review-ai-agent/tokens"
 )
 
-func RunSummarize(ctx context.Context, s store.Store, client llm.LLM, contractID string, clauseTokenBudget int, model string) error {
+func RunSummarize(ctx context.Context, s store.Store, client llm.LLM, contractID string, clauseTokenBudget int, model string, outputDir string) error {
 	contract, err := s.GetContract(ctx, contractID)
 	if err != nil {
 		return fmt.Errorf("get contract: %w", err)
@@ -88,7 +89,11 @@ func RunSummarize(ctx context.Context, s store.Store, client llm.LLM, contractID
 		return fmt.Errorf("save summary: %w", err)
 	}
 
-	filename := fmt.Sprintf("summary_%s.md", contractID)
+	dir := outputDir
+	if dir == "" {
+		dir = "."
+	}
+	filename := filepath.Join(dir, fmt.Sprintf("summary_%s.md", contractID))
 	if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
 		return fmt.Errorf("write file: %w", err)
 	}
@@ -173,13 +178,15 @@ func truncateToTokenBudget(s, model string, budget int) string {
 	if tokens.Count(model, s) <= budget {
 		return s
 	}
+	const ellipsis = "…"
+	ellipsisCost := tokens.Count(model, ellipsis)
 	runes := []rune(s)
 	for len(runes) > 0 {
-		candidate := string(runes)
-		if tokens.Count(model, candidate) <= budget {
-			return candidate + "…"
-		}
 		runes = runes[:len(runes)-1]
+		candidate := string(runes)
+		if tokens.Count(model, candidate)+ellipsisCost <= budget {
+			return candidate + ellipsis
+		}
 	}
 	return ""
 }
