@@ -36,6 +36,11 @@ func (o *OpenAI) Complete(ctx context.Context, req CompletionRequest) (Completio
 	if len(req.Tools) > 0 {
 		params.Tools = toOpenAITools(req.Tools)
 	}
+	if req.ForceToolName != "" {
+		params.ToolChoice = openai.ToolChoiceOptionFunctionToolChoice(openai.ChatCompletionNamedToolChoiceFunctionParam{
+			Name: req.ForceToolName,
+		})
+	}
 
 	raw, err := o.client.Chat.Completions.New(ctx, params)
 	if err != nil {
@@ -73,7 +78,27 @@ func toOpenAIMessages(msgs []Message) []openai.ChatCompletionMessageParamUnion {
 		case RoleUser:
 			out = append(out, openai.UserMessage(m.Content))
 		case RoleAssistant:
-			out = append(out, openai.AssistantMessage(m.Content))
+			if len(m.ToolCalls) > 0 {
+				assistant := openai.ChatCompletionAssistantMessageParam{}
+				if m.Content != "" {
+					assistant.Content.OfString = openai.String(m.Content)
+				}
+				assistant.ToolCalls = make([]openai.ChatCompletionMessageToolCallUnionParam, len(m.ToolCalls))
+				for i, tc := range m.ToolCalls {
+					assistant.ToolCalls[i] = openai.ChatCompletionMessageToolCallUnionParam{
+						OfFunction: &openai.ChatCompletionMessageFunctionToolCallParam{
+							ID: tc.ID,
+							Function: openai.ChatCompletionMessageFunctionToolCallFunctionParam{
+								Name:      tc.Name,
+								Arguments: string(tc.Args),
+							},
+						},
+					}
+				}
+				out = append(out, openai.ChatCompletionMessageParamUnion{OfAssistant: &assistant})
+			} else {
+				out = append(out, openai.AssistantMessage(m.Content))
+			}
 		case RoleTool:
 			out = append(out, openai.ToolMessage(m.Content, m.ToolCallID))
 		}
