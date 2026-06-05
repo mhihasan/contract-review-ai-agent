@@ -65,7 +65,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	if len(os.Args) < 2 {
+	dryRun := false
+	filteredArgs := make([]string, 0, len(os.Args[1:]))
+	for _, a := range os.Args[1:] {
+		if a == "--dry-run" || a == "-dry-run" {
+			dryRun = true
+		} else {
+			filteredArgs = append(filteredArgs, a)
+		}
+	}
+
+	if len(filteredArgs) < 1 {
 		fmt.Fprintln(os.Stderr, "usage: contract-review-ai-agent <command> [args]")
 		fmt.Fprintln(os.Stderr, "commands:")
 		fmt.Fprintln(os.Stderr, "  process <path/to/contract.pdf> [--review]  run the full pipeline")
@@ -77,14 +87,15 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  analyze-clause <contract_id> <clause_id>    debug: run agent on one clause")
 		fmt.Fprintln(os.Stderr, "  status <contract_id>                        show contract and clause agent_run states")
 		fmt.Fprintln(os.Stderr, "  summarize <contract_id>                     generate the final summary report")
+		fmt.Fprintln(os.Stderr, "  --dry-run  print what the pipeline would do; make no LLM calls, no DB writes")
 		os.Exit(1)
 	}
 
-	switch os.Args[1] {
+	switch filteredArgs[0] {
 	case "process":
 		fs := flag.NewFlagSet("process", flag.ExitOnError)
 		requiresReview := fs.Bool("review", false, "pause for human review after analysis")
-		_ = fs.Parse(os.Args[2:])
+		_ = fs.Parse(filteredArgs[1:])
 		if len(fs.Args()) < 1 {
 			fmt.Fprintln(os.Stderr, "usage: process <path/to/contract.pdf> [--review]")
 			os.Exit(1)
@@ -95,21 +106,21 @@ func main() {
 		}
 
 	case "review":
-		if len(os.Args) < 3 {
+		if len(filteredArgs) < 2 {
 			fmt.Fprintln(os.Stderr, "usage: review <contract_id>")
 			os.Exit(1)
 		}
-		if err := pipeline.RunReview(ctx, s, os.Args[2], os.Stdin); err != nil {
+		if err := pipeline.RunReview(ctx, s, filteredArgs[1], os.Stdin); err != nil {
 			slog.Error("review failed", "error", err)
 			os.Exit(1)
 		}
 
 	case "resume":
-		if len(os.Args) < 3 {
+		if len(filteredArgs) < 2 {
 			fmt.Fprintln(os.Stderr, "usage: resume <contract_id>")
 			os.Exit(1)
 		}
-		if err := pipeline.RunResume(ctx, s, os.Args[2], func(ctx context.Context, s store.Store, id string) error {
+		if err := pipeline.RunResume(ctx, s, filteredArgs[1], func(ctx context.Context, s store.Store, id string) error {
 			return pipeline.RunSummarize(ctx, s, client, id, cfg.SummaryClauseTokenBudget, cfg.LLMModel, ".", "client", "", "")
 		}); err != nil {
 			slog.Error("resume failed", "error", err)
@@ -117,14 +128,14 @@ func main() {
 		}
 
 	case "extract":
-		if len(os.Args) < 3 {
+		if len(filteredArgs) < 2 {
 			fmt.Fprintln(os.Stderr, "usage: extract <path/to/contract.pdf>")
 			os.Exit(1)
 		}
-		id, err := pipeline.RunExtract(ctx, s, pdf.ExtractText, os.Args[2], false)
+		id, err := pipeline.RunExtract(ctx, s, pdf.ExtractText, filteredArgs[1], false)
 		if err != nil {
 			if errors.Is(err, pdf.ErrNotPDF) {
-				slog.Error("not a PDF file", "path", os.Args[2])
+				slog.Error("not a PDF file", "path", filteredArgs[1])
 				os.Exit(1)
 			}
 			slog.Error("extract failed", "error", err)
@@ -133,57 +144,79 @@ func main() {
 		slog.Info("extracted", "contract_id", id)
 
 	case "extract-clauses":
-		if len(os.Args) < 3 {
+		if len(filteredArgs) < 2 {
 			fmt.Fprintln(os.Stderr, "usage: extract-clauses <contract_id>")
 			os.Exit(1)
 		}
-		if err := pipeline.ExtractClauses(ctx, client, s, os.Args[2]); err != nil {
+		if err := pipeline.ExtractClauses(ctx, client, s, filteredArgs[1]); err != nil {
 			slog.Error("extract-clauses failed", "error", err)
 			os.Exit(1)
 		}
 
 	case "analyze":
-		if len(os.Args) < 3 {
+		if len(filteredArgs) < 2 {
 			fmt.Fprintln(os.Stderr, "usage: analyze <contract_id>")
 			os.Exit(1)
 		}
-		if err := runAnalyze(ctx, cfg, client, s, os.Args[2]); err != nil {
+		if dryRun {
+			contract, err := s.GetContract(ctx, filteredArgs[1])
+			if err != nil {
+				slog.Error("get contract failed", "error", err)
+				os.Exit(1)
+			}
+			clauses, _ := s.GetClauses(ctx, filteredArgs[1])
+			estClauses := len(clauses)
+			if estClauses == 0 {
+				estClauses = 12
+			}
+			pipeline.PrintDryRunPlan(os.Stdout, pipeline.DryRunPlan{
+				ContractID:       filteredArgs[1],
+				InputChars:       len(contract.RawText),
+				EstClauses:       estClauses,
+				Concurrency:      cfg.AnalysisConcurrency,
+				PerAgentMaxSteps: defaultMaxSteps,
+				BudgetCapUSD:     cfg.RunMaxCostUSD,
+				BudgetCapTokens:  cfg.RunMaxTokens,
+			})
+			return
+		}
+		if err := runAnalyze(ctx, cfg, client, s, filteredArgs[1]); err != nil {
 			slog.Error("analyze failed", "error", err)
 			os.Exit(1)
 		}
 
 	case "analyze-clause":
-		if len(os.Args) < 4 {
+		if len(filteredArgs) < 3 {
 			fmt.Fprintln(os.Stderr, "usage: analyze-clause <contract_id> <clause_id>")
 			os.Exit(1)
 		}
-		if err := runAnalyzeClause(ctx, cfg, client, s, os.Args[2], os.Args[3]); err != nil {
+		if err := runAnalyzeClause(ctx, cfg, client, s, filteredArgs[1], filteredArgs[2]); err != nil {
 			slog.Error("analyze-clause failed", "error", err)
 			os.Exit(1)
 		}
 
 	case "status":
-		if len(os.Args) < 3 {
+		if len(filteredArgs) < 2 {
 			fmt.Fprintln(os.Stderr, "usage: status <contract_id>")
 			os.Exit(1)
 		}
-		if err := runStatus(ctx, s, os.Args[2]); err != nil {
+		if err := runStatus(ctx, s, filteredArgs[1]); err != nil {
 			slog.Error("status failed", "error", err)
 			os.Exit(1)
 		}
 
 	case "summarize":
-		if len(os.Args) < 3 {
+		if len(filteredArgs) < 2 {
 			fmt.Fprintln(os.Stderr, "usage: summarize <contract_id>")
 			os.Exit(1)
 		}
-		if err := pipeline.RunSummarize(ctx, s, client, os.Args[2], cfg.SummaryClauseTokenBudget, cfg.LLMModel, ".", "client", "", ""); err != nil {
+		if err := pipeline.RunSummarize(ctx, s, client, filteredArgs[1], cfg.SummaryClauseTokenBudget, cfg.LLMModel, ".", "client", "", ""); err != nil {
 			slog.Error("summarize failed", "error", err)
 			os.Exit(1)
 		}
 
 	default:
-		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
+		fmt.Fprintf(os.Stderr, "unknown command: %s\n", filteredArgs[0])
 		os.Exit(1)
 	}
 }
