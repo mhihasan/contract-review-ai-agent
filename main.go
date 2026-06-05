@@ -119,7 +119,7 @@ func main() {
 			fmt.Fprintln(os.Stderr, "usage: extract <path/to/contract.pdf>")
 			os.Exit(1)
 		}
-		id, err := pipeline.RunExtract(ctx, s, pdf.ExtractText, os.Args[2])
+		id, err := pipeline.RunExtract(ctx, s, pdf.ExtractText, os.Args[2], false)
 		if err != nil {
 			if errors.Is(err, pdf.ErrNotPDF) {
 				slog.Error("not a PDF file", "path", os.Args[2])
@@ -177,7 +177,7 @@ func main() {
 }
 
 func runProcess(ctx context.Context, cfg config.Config, client llm.LLM, s store.Store, pdfPath string, requiresReview bool) error {
-	contractID, err := pipeline.RunExtract(ctx, s, pdf.ExtractText, pdfPath)
+	contractID, err := pipeline.RunExtract(ctx, s, pdf.ExtractText, pdfPath, requiresReview)
 	if err != nil {
 		return fmt.Errorf("extract: %w", err)
 	}
