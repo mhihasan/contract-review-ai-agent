@@ -112,7 +112,7 @@ func Load() (Config, error) {
 		}
 	}
 
-	runMaxTokens := 500000
+	runMaxTokens := 2000000
 	if s := os.Getenv("RUN_MAX_TOKENS"); s != "" {
 		if v, err := strconv.Atoi(s); err == nil {
 			runMaxTokens = v
@@ -126,7 +126,7 @@ func Load() (Config, error) {
 		}
 	}
 
-	runMaxSteps := 200
+	runMaxSteps := 10000
 	if s := os.Getenv("RUN_MAX_STEPS"); s != "" {
 		if v, err := strconv.Atoi(s); err == nil {
 			runMaxSteps = v
