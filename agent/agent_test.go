@@ -30,6 +30,11 @@ func newMemoryStore() *memoryStore {
 func (m *memoryStore) CreateContract(_ context.Context, _, _ string) (domain.Contract, error) {
 	panic("not implemented")
 }
+
+func (m *memoryStore) CreateContractWithOptions(_ context.Context, _, _ string, _ bool) (domain.Contract, error) {
+	panic("not implemented")
+}
+
 func (m *memoryStore) GetContract(_ context.Context, id string) (domain.Contract, error) {
 	c, ok := m.contracts[id]
 	if !ok {
