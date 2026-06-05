@@ -79,7 +79,7 @@ func RunSummarize(ctx context.Context, s store.Store, client llm.LLM, contractID
 		Messages: []llm.Message{
 			{Role: llm.RoleUser, Content: p.Render()},
 		},
-		MaxTokens:   4096,
+		MaxTokens:   8192,
 		Temperature: 0.2,
 	})
 	if err != nil {
