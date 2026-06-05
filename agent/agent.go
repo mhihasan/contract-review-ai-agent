@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
+	"github.com/mhihasan/contract-review-ai-agent/cost"
 	"github.com/mhihasan/contract-review-ai-agent/domain"
 	"github.com/mhihasan/contract-review-ai-agent/llm"
 	"github.com/mhihasan/contract-review-ai-agent/prompts"
@@ -171,10 +173,23 @@ func (a *Agent) Run(ctx context.Context, task AnalyzeClauseTask) (Result, error)
 					submitted = true
 					break
 				}
+				slog.Debug("→ "+call.Name, "args", string(call.Args), "step", step)
 				result, err := a.tools.Dispatch(ctx, call)
 				if err != nil {
 					result = "tool error: " + err.Error()
 				}
+				preview := result
+				if len([]rune(preview)) > 120 {
+					preview = string([]rune(preview)[:120]) + "…"
+				}
+				callCost := cost.Estimate(resp.Provider, resp.Model, resp.InputTokens, resp.OutputTokens)
+				slog.Debug("← "+call.Name,
+					"result_preview", preview,
+					"input_tokens", resp.InputTokens,
+					"output_tokens", resp.OutputTokens,
+					"est_cost_usd", fmt.Sprintf("$%.6f", callCost),
+					"step", step,
+				)
 				msgs = append(msgs, toolResultMessage(call.ID, result))
 			}
 			if stepsRemaining == 1 && !submitted {
@@ -201,6 +216,12 @@ func (a *Agent) Run(ctx context.Context, task AnalyzeClauseTask) (Result, error)
 				}
 				_ = a.store.FinishAgentRun(ctx, agentRunID, "submitted", stepsRun, snap.UsedTokens, snap.UsedCostUSD)
 			}
+			slog.Debug("agent done",
+				"stop", "submitted",
+				"steps", stepsRun,
+				"total_input_tokens", usage.InputTokens,
+				"total_output_tokens", usage.OutputTokens,
+			)
 			return Result{Finding: finalFinding, Steps: stepsRun, Stop: "submitted", Usage: usage}, nil
 		}
 	}
@@ -216,6 +237,12 @@ func (a *Agent) Run(ctx context.Context, task AnalyzeClauseTask) (Result, error)
 		}
 		_ = a.store.FinishAgentRun(ctx, agentRunID, finalStop, stepsRun, snap.UsedTokens, snap.UsedCostUSD)
 	}
+	slog.Debug("agent done",
+		"stop", finalStop,
+		"steps", stepsRun,
+		"total_input_tokens", usage.InputTokens,
+		"total_output_tokens", usage.OutputTokens,
+	)
 	return Result{Steps: stepsRun, Stop: finalStop, Usage: usage}, nil
 }
 
