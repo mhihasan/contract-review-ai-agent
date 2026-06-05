@@ -75,7 +75,7 @@ go run . status <contract_id>                    # show contract and clause proc
 ### Output
 
 A successful run produces:
-- `summary_<contract_id>.md` — a markdown report with four sections: Executive Summary, Key Findings, Risk Breakdown, and Clause-by-Clause Detail
+- `summary_<contract_id>.md` — a markdown report with five sections: Executive Summary, Signing Recommendation, Priority Issues, Risk Breakdown, and Clause-by-Clause Detail
 - The same content printed to stdout
 
 ---
