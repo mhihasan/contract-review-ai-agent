@@ -69,6 +69,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "  process <path/to/contract.pdf>   run the full pipeline")
 		fmt.Fprintln(os.Stderr, "  extract <path/to/contract.pdf>   debug: PDF extraction only")
 		fmt.Fprintln(os.Stderr, "  extract-clauses <contract_id>    debug: clause splitting only")
+		fmt.Fprintln(os.Stderr, "  analyze <contract_id>            run analysis across all clauses")
 		fmt.Fprintln(os.Stderr, "  analyze-clause <contract_id> <clause_id>  debug: run agent on one clause")
 		fmt.Fprintln(os.Stderr, "  status <contract_id>             show contract and clause agent_run states")
 		os.Exit(1)
@@ -111,6 +112,16 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "analyze":
+		if len(os.Args) < 3 {
+			fmt.Fprintln(os.Stderr, "usage: analyze <contract_id>")
+			os.Exit(1)
+		}
+		if err := runAnalyze(ctx, cfg, client, s, os.Args[2]); err != nil {
+			slog.Error("analyze failed", "error", err)
+			os.Exit(1)
+		}
+
 	case "analyze-clause":
 		if len(os.Args) < 4 {
 			fmt.Fprintln(os.Stderr, "usage: analyze-clause <contract_id> <clause_id>")
@@ -149,6 +160,15 @@ func runProcess(ctx context.Context, cfg config.Config, client llm.LLM, s store.
 	}
 	slog.Info("clauses extracted", "contract_id", contractID)
 
+	if err := runAnalyze(ctx, cfg, client, s, contractID); err != nil {
+		return fmt.Errorf("analyze-clauses: %w", err)
+	}
+	slog.Info("clauses analyzed", "contract_id", contractID)
+
+	return nil
+}
+
+func runAnalyze(ctx context.Context, cfg config.Config, client llm.LLM, s store.Store, contractID string) error {
 	ctxMgr := agent.NewContextManager(
 		cfg.LLMModel,
 		cfg.ContextWindow,
@@ -156,11 +176,19 @@ func runProcess(ctx context.Context, cfg config.Config, client llm.LLM, s store.
 		cfg.KeepRecent,
 		client,
 	)
-	if err := pipeline.AnalyzeClauses(ctx, client, s, contractID, defaultMaxSteps, ctxMgr); err != nil {
-		return fmt.Errorf("analyze-clauses: %w", err)
+	budget := agent.NewBudget(cfg.RunMaxTokens, cfg.RunMaxCostUSD, cfg.RunMaxSteps)
+	if err := pipeline.AnalyzeClauses(
+		ctx,
+		client,
+		s,
+		contractID,
+		defaultMaxSteps,
+		ctxMgr,
+		budget,
+		cfg.AnalysisConcurrency,
+	); err != nil {
+		return fmt.Errorf("analyze clauses: %w", err)
 	}
-	slog.Info("clauses analyzed", "contract_id", contractID)
-
 	return nil
 }
 
