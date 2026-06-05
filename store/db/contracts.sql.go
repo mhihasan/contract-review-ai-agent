@@ -12,7 +12,7 @@ import (
 const createContract = `-- name: CreateContract :one
 INSERT INTO contracts (id, filename, raw_text, status)
 VALUES ($1, $2, $3, $4)
-RETURNING id, filename, raw_text, status, created_at
+RETURNING id, filename, raw_text, status, created_at, requires_review
 `
 
 type CreateContractParams struct {
@@ -36,12 +36,47 @@ func (q *Queries) CreateContract(ctx context.Context, arg CreateContractParams) 
 		&i.RawText,
 		&i.Status,
 		&i.CreatedAt,
+		&i.RequiresReview,
+	)
+	return i, err
+}
+
+const createContractWithOptions = `-- name: CreateContractWithOptions :one
+INSERT INTO contracts (id, filename, raw_text, status, requires_review)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, filename, raw_text, status, created_at, requires_review
+`
+
+type CreateContractWithOptionsParams struct {
+	ID             string
+	Filename       string
+	RawText        string
+	Status         string
+	RequiresReview bool
+}
+
+func (q *Queries) CreateContractWithOptions(ctx context.Context, arg CreateContractWithOptionsParams) (Contract, error) {
+	row := q.db.QueryRow(ctx, createContractWithOptions,
+		arg.ID,
+		arg.Filename,
+		arg.RawText,
+		arg.Status,
+		arg.RequiresReview,
+	)
+	var i Contract
+	err := row.Scan(
+		&i.ID,
+		&i.Filename,
+		&i.RawText,
+		&i.Status,
+		&i.CreatedAt,
+		&i.RequiresReview,
 	)
 	return i, err
 }
 
 const getContract = `-- name: GetContract :one
-SELECT id, filename, raw_text, status, created_at FROM contracts WHERE id = $1
+SELECT id, filename, raw_text, status, created_at, requires_review FROM contracts WHERE id = $1
 `
 
 func (q *Queries) GetContract(ctx context.Context, id string) (Contract, error) {
@@ -53,6 +88,7 @@ func (q *Queries) GetContract(ctx context.Context, id string) (Contract, error) 
 		&i.RawText,
 		&i.Status,
 		&i.CreatedAt,
+		&i.RequiresReview,
 	)
 	return i, err
 }
