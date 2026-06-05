@@ -197,3 +197,23 @@ func TestConfig_BudgetEnvVars_Override(t *testing.T) {
 		t.Errorf("RunMaxSteps = %d, want 42", cfg.RunMaxSteps)
 	}
 }
+
+func TestRetryDefaults(t *testing.T) {
+	os.Unsetenv("LLM_MAX_RETRIES")   //nolint:errcheck
+	os.Unsetenv("LLM_RETRY_BASE_MS") //nolint:errcheck
+	// Set required env vars so Load() succeeds
+	t.Setenv("DATABASE_URL", "postgres://x")
+	t.Setenv("LLM_PROVIDER", "openai")
+	t.Setenv("OPENAI_API_KEY", "test-key")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.LLMMaxRetries != 3 {
+		t.Errorf("expected LLMMaxRetries=3, got %d", cfg.LLMMaxRetries)
+	}
+	if cfg.LLMRetryBaseMS != 500 {
+		t.Errorf("expected LLMRetryBaseMS=500, got %d", cfg.LLMRetryBaseMS)
+	}
+}
