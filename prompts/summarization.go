@@ -18,18 +18,23 @@ type ReviewCounts struct {
 }
 
 type ClauseInput struct {
-	SequenceNumber int
-	Gist           string
-	RiskLevel      string
-	Decision       string
-	Annotation     string
+	SequenceNumber    int
+	Gist              string
+	RiskLevel         string
+	Decision          string
+	Annotation        string
+	Recommendations   string
+	AmbiguousLanguage string
 }
 
 type SummarizationPrompt struct {
-	Filename     string
-	RiskCounts   RiskCounts
-	ReviewCounts ReviewCounts
-	ClauseInputs []ClauseInput
+	Filename       string
+	ReviewingParty string // "client" or "vendor"
+	GoverningLaw   string // e.g. "New York", "England & Wales"; empty = not specified
+	ContractType   string // e.g. "MSA", "NDA", "Employment Agreement"; empty = not specified
+	RiskCounts     RiskCounts
+	ReviewCounts   ReviewCounts
+	ClauseInputs   []ClauseInput
 }
 
 func (p SummarizationPrompt) Render() string {
