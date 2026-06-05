@@ -8,23 +8,24 @@ import (
 )
 
 type Config struct {
-	OpenAIAPIKey    string
-	AnthropicAPIKey string
-	DatabaseURL     string
-	LogLevel        string
-	LLMProvider     string
-	LLMModel        string
-	LLMTemperature  float64
-	ContextWindow   int
-	CompactRatio    float64
-	KeepRecent      int
-	AgentMaxTokens  int
-	AgentMaxCostUSD float64
-	RunMaxTokens    int
-	RunMaxCostUSD   float64
-	RunMaxSteps     int
-	LLMMaxRetries   int
-	LLMRetryBaseMS  int
+	OpenAIAPIKey        string
+	AnthropicAPIKey     string
+	DatabaseURL         string
+	LogLevel            string
+	LLMProvider         string
+	LLMModel            string
+	LLMTemperature      float64
+	ContextWindow       int
+	CompactRatio        float64
+	KeepRecent          int
+	AgentMaxTokens      int
+	AgentMaxCostUSD     float64
+	RunMaxTokens        int
+	RunMaxCostUSD       float64
+	RunMaxSteps         int
+	AnalysisConcurrency int
+	LLMMaxRetries       int
+	LLMRetryBaseMS      int
 }
 
 func Load() (Config, error) {
@@ -131,6 +132,13 @@ func Load() (Config, error) {
 		}
 	}
 
+	analysisConcurrency := 5
+	if s := os.Getenv("ANALYSIS_CONCURRENCY"); s != "" {
+		if v, err := strconv.Atoi(s); err == nil {
+			analysisConcurrency = v
+		}
+	}
+
 	llmMaxRetries := 3
 	if s := os.Getenv("LLM_MAX_RETRIES"); s != "" {
 		if v, err := strconv.Atoi(s); err == nil {
@@ -146,22 +154,23 @@ func Load() (Config, error) {
 	}
 
 	return Config{
-		OpenAIAPIKey:    openAIKey,
-		AnthropicAPIKey: anthropicKey,
-		DatabaseURL:     dbURL,
-		LogLevel:        logLevel,
-		LLMProvider:     provider,
-		LLMModel:        model,
-		LLMTemperature:  temp,
-		ContextWindow:   contextWindow,
-		CompactRatio:    compactRatio,
-		KeepRecent:      keepRecent,
-		AgentMaxTokens:  agentMaxTokens,
-		AgentMaxCostUSD: agentMaxCostUSD,
-		RunMaxTokens:    runMaxTokens,
-		RunMaxCostUSD:   runMaxCostUSD,
-		RunMaxSteps:     runMaxSteps,
-		LLMMaxRetries:   llmMaxRetries,
-		LLMRetryBaseMS:  llmRetryBaseMS,
+		OpenAIAPIKey:        openAIKey,
+		AnthropicAPIKey:     anthropicKey,
+		DatabaseURL:         dbURL,
+		LogLevel:            logLevel,
+		LLMProvider:         provider,
+		LLMModel:            model,
+		LLMTemperature:      temp,
+		ContextWindow:       contextWindow,
+		CompactRatio:        compactRatio,
+		KeepRecent:          keepRecent,
+		AgentMaxTokens:      agentMaxTokens,
+		AgentMaxCostUSD:     agentMaxCostUSD,
+		RunMaxTokens:        runMaxTokens,
+		RunMaxCostUSD:       runMaxCostUSD,
+		RunMaxSteps:         runMaxSteps,
+		AnalysisConcurrency: analysisConcurrency,
+		LLMMaxRetries:       llmMaxRetries,
+		LLMRetryBaseMS:      llmRetryBaseMS,
 	}, nil
 }
