@@ -12,7 +12,7 @@ import (
 	"github.com/mhihasan/contract-review-ai-agent/tool"
 )
 
-func AnalyzeClauses(ctx context.Context, client llm.LLM, s store.Store, contractID string, maxSteps int) error {
+func AnalyzeClauses(ctx context.Context, client llm.LLM, s store.Store, contractID string, maxSteps int, ctxMgr *agent.ContextManager) error {
 	clauses, err := s.GetClauses(ctx, contractID)
 	if err != nil {
 		return fmt.Errorf("get clauses: %w", err)
@@ -30,7 +30,7 @@ func AnalyzeClauses(ctx context.Context, client llm.LLM, s store.Store, contract
 	)
 
 	for _, clause := range clauses {
-		a := agent.New(client, reg, maxSteps)
+		a := agent.New(client, reg, maxSteps, ctxMgr)
 		result, err := a.Run(ctx, agent.AnalyzeClauseTask{
 			ContractID: contractID,
 			ClauseID:   clause.ID,

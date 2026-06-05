@@ -112,7 +112,7 @@ func main() {
 			fmt.Fprintln(os.Stderr, "usage: analyze-clause <contract_id> <clause_id>")
 			os.Exit(1)
 		}
-		if err := runAnalyzeClause(ctx, client, s, os.Args[2], os.Args[3]); err != nil {
+		if err := runAnalyzeClause(ctx, cfg, client, s, os.Args[2], os.Args[3]); err != nil {
 			slog.Error("analyze-clause failed", "error", err)
 			os.Exit(1)
 		}
@@ -123,7 +123,7 @@ func main() {
 	}
 }
 
-func runProcess(ctx context.Context, _ config.Config, client llm.LLM, s store.Store, pdfPath string) error {
+func runProcess(ctx context.Context, cfg config.Config, client llm.LLM, s store.Store, pdfPath string) error {
 	contractID, err := pipeline.RunExtract(ctx, s, pdf.ExtractText, pdfPath)
 	if err != nil {
 		return fmt.Errorf("extract: %w", err)
@@ -135,7 +135,14 @@ func runProcess(ctx context.Context, _ config.Config, client llm.LLM, s store.St
 	}
 	slog.Info("clauses extracted", "contract_id", contractID)
 
-	if err := pipeline.AnalyzeClauses(ctx, client, s, contractID, defaultMaxSteps); err != nil {
+	ctxMgr := agent.NewContextManager(
+		cfg.LLMModel,
+		cfg.ContextWindow,
+		cfg.CompactRatio,
+		cfg.KeepRecent,
+		client,
+	)
+	if err := pipeline.AnalyzeClauses(ctx, client, s, contractID, defaultMaxSteps, ctxMgr); err != nil {
 		return fmt.Errorf("analyze-clauses: %w", err)
 	}
 	slog.Info("clauses analyzed", "contract_id", contractID)
@@ -143,7 +150,7 @@ func runProcess(ctx context.Context, _ config.Config, client llm.LLM, s store.St
 	return nil
 }
 
-func runAnalyzeClause(ctx context.Context, client llm.LLM, s store.Store, contractID, clauseID string) error {
+func runAnalyzeClause(ctx context.Context, cfg config.Config, client llm.LLM, s store.Store, contractID, clauseID string) error {
 	clauses, err := s.GetClauses(ctx, contractID)
 	if err != nil {
 		return fmt.Errorf("get clauses: %w", err)
@@ -167,7 +174,14 @@ func runAnalyzeClause(ctx context.Context, client llm.LLM, s store.Store, contra
 		tool.NewLookupStandardClause(s, contractID),
 	)
 
-	a := agent.New(client, reg, defaultMaxSteps)
+	ctxMgr := agent.NewContextManager(
+		cfg.LLMModel,
+		cfg.ContextWindow,
+		cfg.CompactRatio,
+		cfg.KeepRecent,
+		client,
+	)
+	a := agent.New(client, reg, defaultMaxSteps, ctxMgr)
 	result, err := a.Run(ctx, agent.AnalyzeClauseTask{
 		ContractID: target.ContractID,
 		ClauseID:   target.ID,
