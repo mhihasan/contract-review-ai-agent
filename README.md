@@ -1,6 +1,37 @@
 # Contract Review
 
-A CLI tool that reads a PDF contract, splits it into clauses, scores each one for risk, and produces a structured markdown report. Optionally pauses for a human review step before generating the final output.
+A CLI tool that reads a PDF contract, scores every clause for risk, and produces a structured report telling you what to sign, what to renegotiate, and what to reject. Optionally pauses for a human review step before generating the final output.
+
+---
+
+## What problem it solves
+
+Reading a contract carefully takes hours. High-risk clauses — uncapped liability, one-sided termination rights, ambiguous IP assignments — are easy to miss when buried in dense legal language. This tool reads every clause, flags what looks dangerous, explains why, and tells you what to do about it. You get a signed-off report in minutes, not hours.
+
+---
+
+## What you get
+
+Drop in a PDF. The tool produces a `summary_<contract_id>.md` report with five sections:
+
+**1. Executive Summary**
+Two to four sentences on the overall risk profile and whether you should sign.
+
+**2. Signing Recommendation**
+One of three verdicts — *Do Not Sign*, *Sign With Changes*, or *Sign As-Is* — with a one-sentence explanation.
+
+**3. Priority Issues**
+Every high-risk clause listed with its recommended edit. If three or more medium-risk clauses exist, the section flags them as a cluster that warrants negotiation even if none individually is critical.
+
+**4. Risk Breakdown**
+Clause counts by risk level (high / medium / low) and by reviewer decision (approved / rejected / overrides).
+
+**5. Clause-by-Clause Detail**
+A table of every clause: risk level, reviewer decision, the issue found, and the recommended edit. Rejected clauses include the reviewer's annotation. Clauses with no recommended edit say "Negotiation required" rather than leaving the cell blank.
+
+The report is written from the reviewing party's perspective — client or vendor. If you provide governing law or contract type, those are included.
+
+---
 
 ## Pipeline
 
@@ -8,9 +39,66 @@ A CLI tool that reads a PDF contract, splits it into clauses, scores each one fo
 PDF → extract text → split clauses → analyze each clause → [human review] → summary report
 ```
 
-Each clause gets a risk level, an explanation of any concerns, and concrete recommendations. The final report has five sections: Executive Summary, Signing Recommendation, Priority Issues, Risk Breakdown, and Clause-by-Clause Detail.
+---
 
-Output is written to `summary_<contract_id>.md` and printed to stdout.
+## Features
+
+### Reads the contract as a whole, not just each clause in isolation
+
+When analyzing a clause, the tool can look up defined terms elsewhere in the document, pull related sections by reference number (e.g. "Section 7.2"), and compare the clause against standard baseline language for its type. A liability clause gets compared to a standard liability cap. An indemnity clause gets compared to a standard mutual indemnity. The analysis is grounded in what the contract actually says, not just the clause text in isolation.
+
+### Three-tier risk scoring with ambiguity detection
+
+Every clause gets a risk level — `high`, `medium`, or `low` — with a plain-language explanation of what the risk is and why it matters. If the clause contains vague or undefined language ("reasonable efforts", "material breach"), that language is quoted verbatim in the finding.
+
+### Human review step
+
+The pipeline can pause after analysis so a reviewer can go clause by clause:
+
+- `approve` — accept it as-is
+- `reject` — flag it for renegotiation, with an optional note
+
+Reviewer decisions carry through to the report. The report tracks *overrides* — a reviewer approving a high-risk clause or rejecting a low-risk one — and surfaces them in the Risk Breakdown section. This creates a clear audit trail of what was flagged and what was signed off.
+
+### Concurrent analysis with cost guardrails
+
+All clauses are analyzed in parallel up to a configurable concurrency limit. A shared budget tracks total token usage, dollar cost, and step count across every clause run. If any limit is hit, analysis stops before the next clause starts — no runaway spend on large contracts. Cost and token totals are printed at the end of every run.
+
+### Resumable runs
+
+Every agent step is persisted to the database as it runs. If a run is interrupted — a crash, a timeout, a kill signal — already-finished clauses are not re-analyzed. The pipeline resumes from where it left off. Re-running `summarize` on a completed contract returns the stored result without making another LLM call.
+
+### Dry run
+
+Before committing to a full analysis, `--dry-run` prints the execution plan: clause count, concurrency, per-agent step limit, and projected cost ceiling. No API calls, no database writes.
+
+---
+
+## How the agent works (for developers)
+
+Each clause is processed by a multi-step LLM agent, not a single prompt. The agent runs a tool-calling loop — it can call tools, inspect the results, call more tools, and repeat — before it is required to submit a structured finding. This matters because a liability clause that cross-references Section 4.1 and uses a term defined in Section 1 cannot be assessed accurately from its text alone.
+
+**Tools available to the agent:**
+
+| Tool | What it does |
+|---|---|
+| `get_definition` | Looks up a defined term in the contract by searching for `"term" means` patterns |
+| `get_contract_section` | Fetches a section by name or number (e.g. "Section 7.2") |
+| `search_clause_library` | Keyword search over a standard clause library to identify clause type |
+| `lookup_standard_clause` | Retrieves full baseline text for a clause type (liability, indemnity, termination, etc.) for comparison |
+| `submit_finding` | Structured output gate — the agent cannot finish without calling this with a valid risk level, explanation, and recommendations |
+
+**Context window management**
+
+On long contracts, the agent's message history can grow large. A `ContextManager` monitors token count at each step. When it approaches the compaction threshold it: (1) truncates verbose tool results, (2) summarizes the middle of the history with a separate LLM call, (3) drops the middle entirely as a last resort. The system prompt and most recent messages are always preserved.
+
+**Budget enforcement**
+
+A `Budget` object is shared across all concurrent clause agents. It tracks tokens, USD cost, and step count under a mutex. Before each LLM call, the agent checks whether the budget is already exceeded and exits early if so. This means cost limits are enforced per-step, not just at the end of a run.
+
+**Execution tracing**
+
+Every message and tool call in an agent run is stored in `agent_steps`. The `trace <clause_id>` command replays the full trajectory in the terminal — useful for debugging why the agent reached a particular finding or how many steps it took to get there.
 
 ---
 
@@ -99,6 +187,9 @@ Prints the execution plan (clause count, concurrency, cost estimate). No API cal
 | `clause_analyses` | Risk findings per clause — risk level, explanation, recommendations. |
 | `reviews` | Reviewer decisions (approved / rejected) with optional annotations. |
 | `summaries` | The final report, one per contract. |
+| `agent_runs` | One record per clause analysis run — status, step count, token usage, cost. |
+| `agent_steps` | Every message and tool call in an agent run, persisted step-by-step. |
+| `clause_library` | Standard baseline texts used for clause comparison. |
 
 ### Entity relationships
 
