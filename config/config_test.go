@@ -198,6 +198,34 @@ func TestConfig_BudgetEnvVars_Override(t *testing.T) {
 	}
 }
 
+func TestAnalysisConcurrencyDefault(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://localhost/test")
+	t.Setenv("OPENAI_API_KEY", "test-key")
+	t.Setenv("ANALYSIS_CONCURRENCY", "")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.AnalysisConcurrency != 5 {
+		t.Errorf("want 5, got %d", cfg.AnalysisConcurrency)
+	}
+}
+
+func TestAnalysisConcurrencyFromEnv(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://localhost/test")
+	t.Setenv("OPENAI_API_KEY", "test-key")
+	t.Setenv("ANALYSIS_CONCURRENCY", "10")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.AnalysisConcurrency != 10 {
+		t.Errorf("want 10, got %d", cfg.AnalysisConcurrency)
+	}
+}
+
 func TestRetryDefaults(t *testing.T) {
 	os.Unsetenv("LLM_MAX_RETRIES")   //nolint:errcheck
 	os.Unsetenv("LLM_RETRY_BASE_MS") //nolint:errcheck
