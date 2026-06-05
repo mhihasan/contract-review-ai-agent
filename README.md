@@ -94,6 +94,8 @@ A successful run produces:
 
 ### Entity Relationship Diagram
 
+**Core pipeline tables**
+
 ```mermaid
 erDiagram
     contracts {
@@ -136,6 +138,25 @@ erDiagram
         timestamptz created_at
     }
 
+    contracts ||--o{ clauses : "has"
+    contracts ||--o| summaries : "summarized by"
+    clauses ||--o| clause_analyses : "analyzed by"
+    clauses ||--o| reviews : "reviewed by"
+```
+
+**Agent execution tables**
+
+```mermaid
+erDiagram
+    contracts {
+        text id PK
+    }
+
+    clauses {
+        text id PK
+        text contract_id FK
+    }
+
     runs {
         text id PK
         text contract_id FK
@@ -173,11 +194,8 @@ erDiagram
         text notes
     }
 
-    contracts ||--o{ clauses : "has"
     contracts ||--o{ runs : "has"
-    contracts ||--o| summaries : "summarized by"
-    clauses ||--o| clause_analyses : "analyzed by"
-    clauses ||--o| reviews : "reviewed by"
+    contracts ||--o{ clauses : "has"
     clauses ||--o{ agent_runs : "processed by"
     agent_runs ||--o{ agent_steps : "has"
 ```
